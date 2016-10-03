@@ -20,21 +20,16 @@ void  Restaurant::addTable(Table& table)
 void Restaurant::sampleTables(double ustar)
 {
 	// Create Betas
-	Vector alpha = zeros(tables.size());
+	Vector valpha = zeros(tables.size()+1);
 	int i = 0;
 	for (auto ti = tables.begin(); i < tables.size(); i++, ti++)
-		alpha[i] = ti->n;
-	Dirichlet dr(alpha);
+		valpha[i] = ti->n;
+	valpha[i] = gamma;
+	Dirichlet dr(valpha);
 	beta = dr.rnd();
 	//New Sticks
-	Vector newsticks;
-	if (beta.n == 0)
-		newsticks = stickBreaker(ustar, 1, gamma);
-	else
-	{
-		newsticks = stickBreaker(ustar, beta[beta.n - 1], gamma);
-		beta.resize(beta.n - 1);
-	}
+	Vector	newsticks = stickBreaker(ustar, beta[beta.n - 1], gamma);
+	beta.resize(beta.n - 1);
 	beta = beta.append(newsticks);
 	Normal priormean(this->dist.mu, this->sigma / kappa1);
 	for (i = 0; i < newsticks.n; i++)

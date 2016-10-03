@@ -22,7 +22,7 @@ void CompTask::run(int id) {
 			int NTABLE = cl.tables.size();
 			Vector likelihoods(NTABLE);
 			int j = 0;
-			for (auto t : cl.tables)
+			for (auto& t : cl.tables)
 			{
 				if (cl.beta[j] >= u[i])
 				{
@@ -35,7 +35,6 @@ void CompTask::run(int id) {
 				j++;
 			}
 			z[i] = sampleFromLog(likelihoods); //**
-			u[i] = cl.beta[z[i]] * urand();
 		}
 	}
 

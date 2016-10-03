@@ -56,41 +56,50 @@ public:
 };
 
 
-int relabel(Vector& labels)
+vector<int> relabel(Vector& labels,Vector& superlabels)
 {
+	for (int i = 0; i < labels.n; i++)
+	{
+		labels[i] = labels[i] + 1. / superlabels.n; // Dirty way, maybe I can create hierarhical unique labels later
+	}
 	Vector ulabels = labels.unique();
+	vector<int> parents(ulabels.n);
 	map<double, int> dict;
 	int j = 0;
 	for (int i = 0; i < ulabels.n; i++)
+	{
 		dict[ulabels(i)] = j++;
-	for (int i = 0; i<labels.n; i++)
+	}
+
+	for (int i = 0; i < labels.n; i++)
+	{
 		labels[i] = dict[labels(i)];
-	return ulabels.n;
+		parents[labels[i]] = superlabels[i];
+	}
+	return parents;
 }
 
 
 
-Matrix SliceSampler(Matrix& x, ThreadPool& workers)
+Vector SliceSampler(Matrix& x, ThreadPool& workers)
 {
 	// Point level variables
 	int NTABLE = NINITIAL;
 	Vector u = ones(n);
-	u *= EPS;
 	Vector c = zeros(n); // Cluster labels
 	Vector beta = ones(NINITIAL);
 	Vector z = zeros(n); // Component labels
 	vector<Restaurant> clusters = vector<Restaurant>(1);
-	clusters[0].setDist(mu0, eye(d));
-	clusters[0].sampleTables(u.minimum());
+	vector<int> parents; // Parents of components
+	clusters[0].setDist(mu0, eye(d)/100);
+	clusters[0].sampleTables(0.1);
+	u = urand(n);
+	u *= clusters[0].beta.minimum();
 
 	CompTask cmsampler(x,z,u,c,clusters);
 	Collector  collector(x,z);
-	Matrix labels;
-
-
-
-
-	for (int iter = 0; iter < 2; iter++) {
+	
+	for (int iter = 0; iter < 100; iter++) {
 		cmsampler.reset(2 * nthd);
 		for (auto i = 0; i < cmsampler.nchunks; i++) {
 			workers.submit(cmsampler);
@@ -98,16 +107,13 @@ Matrix SliceSampler(Matrix& x, ThreadPool& workers)
 		workers.waitAll();
 
 		// relabel, remove empty ones
-		// TO DO : Use hashtable to get unique table ids
-		for (int i = 0; i < n; i++)
-			z[i] = z[i] + c[i] / clusters.size();
-		NTABLE = relabel(z);
+		parents = relabel(z,c);
+		NTABLE = parents.size();
 		collector.reset();
 		for (auto i = 0; i < NTABLE; i++) {
 			workers.submit(collector);
 		}
 		workers.waitAll();
-
 
 		for (int i = 0; i < clusters.size(); i++)
 			clusters[i].reset();
@@ -119,6 +125,21 @@ Matrix SliceSampler(Matrix& x, ThreadPool& workers)
 		// Sample Tables
 		for (int i = 0; i < clusters.size(); i++)
 			clusters[i].sampleTables(u.minimum());
+
+		// Auxilary variables
+		for (int i = 0; i < n; i++)
+			u[i] = clusters[c[i]].beta[z[i]] * urand();
+
+
+		// Cluster level beta variable
+		Vector valpha = zeros(clusters.size() + 1);
+		int i = 0;
+		for (auto ti = clusters.begin(); i < clusters.size(); i++, ti++)
+			valpha[i] = ti->tables.size();
+		valpha[i] = gamma;
+		Dirichlet dr(valpha);
+		beta = dr.rnd();
+
 
 	}
 	/*
@@ -138,7 +159,7 @@ Matrix SliceSampler(Matrix& x, ThreadPool& workers)
 	// Add new tables, zero scatter
 	// 
 	*/
-	return labels;
+	return z;
 }
 
 
@@ -208,7 +229,7 @@ int main(int argc,char** argv)
 	if (argc > 3)
 		Psi.readBin(argv[3]);
 	else
-		Psi = (eye(d)*m).copy();
+		Psi = (eye(d)).copy();
 
 
 
