@@ -8,12 +8,20 @@ public:
 	Vector beta;
 	Normal dist;
 	Matrix sigma;
-	list<Table> tables;
+	int id = 0;
+	Vector sum;
+	int n;
+	Matrix scatter;
+	list<list<Table>::iterator> tables;
 	void sampleTables(double minu);
-	void addTable(Table& table);
+	void addStats(list<Table>::iterator table);
+	void addTable(list<Table>::iterator table);
 	void setDist(Vector& mu, Matrix& sigma);
 	void reset();
-	Restaurant();
+	void resetStats();
+	void sampleParams();
+	list<Table>& tablestorage;
+	Restaurant(list<Table>& tablestorage);
 	~Restaurant();
 };
 

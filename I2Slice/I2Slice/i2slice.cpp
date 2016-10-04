@@ -88,9 +88,12 @@ Vector SliceSampler(Matrix& x, ThreadPool& workers)
 	Vector u = ones(n);
 	Vector c = zeros(n); // Cluster labels
 	Vector beta = ones(NINITIAL);
+	beta /= NINITIAL;
 	Vector z = zeros(n); // Component labels
-	vector<Restaurant> clusters = vector<Restaurant>(1);
-	vector<int> parents; // Parents of components
+	list<Table> tables;
+
+	vector<Restaurant> clusters = vector<Restaurant>(1, tables);
+
 	clusters[0].setDist(mu0, eye(d)/100);
 	clusters[0].sampleTables(0.1);
 	u = urand(n);
@@ -98,7 +101,7 @@ Vector SliceSampler(Matrix& x, ThreadPool& workers)
 
 	CompTask cmsampler(x,z,u,c,clusters);
 	Collector  collector(x,z);
-	
+	int k = 0;
 	for (int iter = 0; iter < 100; iter++) {
 		cmsampler.reset(2 * nthd);
 		for (auto i = 0; i < cmsampler.nchunks; i++) {
@@ -107,19 +110,29 @@ Vector SliceSampler(Matrix& x, ThreadPool& workers)
 		workers.waitAll();
 
 		// relabel, remove empty ones
-		parents = relabel(z,c);
-		NTABLE = parents.size();
+		NTABLE = relabel(z);
 		collector.reset();
 		for (auto i = 0; i < NTABLE; i++) {
 			workers.submit(collector);
 		}
 		workers.waitAll();
 
+
+		k = 0;
+		for (int i = 0; i < clusters.size(); i++)
+		{
+			for (auto& atable : clusters[i].tables)
+			{
+				parents[k] = i;
+				k++;
+			}
+		}
+
 		for (int i = 0; i < clusters.size(); i++)
 			clusters[i].reset();
 		for (int i = 0; i < NTABLE; i++)
 		{
-			Restaurant* cls = &clusters[0];
+			Restaurant* cls = &clusters[parents[i]];
 			cls->addTable(Table(cls, collector.count[i], collector.sum[i], collector.scatter[i]));
 		}
 		// Sample Tables
@@ -130,6 +143,64 @@ Vector SliceSampler(Matrix& x, ThreadPool& workers)
 		for (int i = 0; i < n; i++)
 			u[i] = clusters[c[i]].beta[z[i]] * urand();
 
+		for (int i = 0; i < clusters.size(); i++)
+			clusters[i].id = i;
+
+		// Upper Layer
+		// Auxilary variables
+		
+		double ustar = 1;
+		for (int i = 0; i < clusters.size(); i++)
+			for (auto& atable : clusters[i].tables) {
+					printf("%d\n", atable.cls->id);
+				atable.u = beta[atable.cls->id] * urand();
+				k = k + 1;
+				if ((atable.n) >0 &&  (atable.u < ustar))
+					ustar = atable.u;
+			}
+		// Sample tables
+		
+		Vector likelihood(clusters.size());
+		parents.resize(k);
+		k = 0;
+		for (int i = 0; i < clusters.size(); i++)
+		{
+			for (auto& atable : clusters[i].tables)
+			{
+				for (int j = 0; j < clusters.size(); j++)
+				{
+					if (atable.u <= beta[j])
+						likelihood[j] = clusters[j].dist.likelihood(atable.dist.mu);
+					else
+						likelihood[j] = -INFINITY;
+				}
+				atable.cls = & clusters[sampleFromLog(likelihood)];
+				parents[k] = atable.cls->id;
+				k = k + 1;
+			}
+		}
+
+
+		// Move tables in higher level
+		list<Table> l;
+		for (int i = 0; i < clusters.size(); i++)
+		{
+			for (auto& atable : clusters[i].tables)
+				if (atable.n > 0) // Do not sample empty tables
+					l.push_back(atable);
+			clusters[i].reset();
+		}
+
+		for (auto& atable : l)
+			atable.cls->addTable(atable);
+
+		for (auto cc = clusters.begin(); cc != clusters.end();)
+		{
+			if (cc->n == 0)
+				cc = clusters.erase(cc);
+			else
+				cc++;
+		}
 
 		// Cluster level beta variable
 		Vector valpha = zeros(clusters.size() + 1);
@@ -140,7 +211,17 @@ Vector SliceSampler(Matrix& x, ThreadPool& workers)
 		Dirichlet dr(valpha);
 		beta = dr.rnd();
 
+		Vector	newsticks = stickBreaker(ustar, beta[beta.n - 1], alpha);
+		beta.resize(beta.n - 1);
+		beta = beta.append(newsticks);
 
+		//Remove unused clusters
+
+		for (int i = clusters.size(); i < beta.n; i++)
+			clusters.push_back(Restaurant());
+
+		for (int i = 0; i < clusters.size(); i++)
+			clusters[i].sampleParams();
 	}
 	/*
 	// Create Betas
@@ -183,7 +264,7 @@ int main(int argc,char** argv)
 		return -1;
 	}
 	cout << "NPOINTS :" << x.r << " NDIMS:" << x.m << endl;
-	nthd =  thread::hardware_concurrency();
+	nthd = 1;// thread::hardware_concurrency();
 	n = x.r; // Number of Points
 	d = x.m;
 	init_buffer(nthd, x.m);
@@ -216,7 +297,7 @@ int main(int argc,char** argv)
 		kappa0 = hyperparams.data[2];
 		kappa1 = hyperparams.data[2];
 		gamma = hyperparams.data[3];
-		cout << m << " " << kappa0 << " "  << kappa1 << " " << gamma << endl;
+		cout << m << " " << kappa0 << " "  << kappa1 << " " << gamma << " " << alpha << endl;
 	}
 	else
 	{
@@ -224,6 +305,7 @@ int main(int argc,char** argv)
 		kappa0 = 1;
 		kappa1 = 1;
 		gamma = 1;
+		alpha = 1;
 	}
 
 	if (argc > 3)

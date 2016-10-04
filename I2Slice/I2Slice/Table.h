@@ -7,6 +7,7 @@ public:
 	Normal dist;
 	int n;
 	Vector sum;
+	double u=0;
 	Matrix scatter;
 	Restaurant* cls;
 	Table();
@@ -14,5 +15,6 @@ public:
 	Table(Vector& mu, Matrix& sigma);
 	Table(Restaurant* cls,int n,Vector& sum,Matrix& scatter);
 	void sampleMean();
+	void reset();
 };
 

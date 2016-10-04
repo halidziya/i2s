@@ -3,6 +3,7 @@
 double kappa0 = 0;
 double kappa1 = 0;
 int MAXCOMP = 20;
+extern double alpha = 1;
 
  Normal priormean;
  IWishart priorcov;
@@ -19,13 +20,13 @@ Vector stickBreaker(double ustar, double betastar = 1.0, double alpha = 1)
 	double betasum = 0;
 	for (i = 0; i<MAXCOMP; i++)
 	{
+		if (betastar < ustar)
+			break;
 		beta[i] = betastar*lengths[i];
 		betasum += beta[i];
 		betastar = betastar*(1 - lengths[i]);
-		if (betastar < ustar)
-			break;
 	}
-	beta.resize(i + 2);
-	beta[i + 1] = totallength - betasum;
+	beta.resize(i + 1);
+	beta[i] = totallength - betasum;
 	return beta;
 }

@@ -4,14 +4,22 @@
 
 Table::Table()
 {
-	// Sample from Prior
+	dist = Normal(mu0, Psi);
+	reset();
 }
 
 Table::Table(Vector& mu,Matrix& sigma)
 {
 	dist = Normal(mu,sigma);
-	n = 0;
+	reset();
 
+}
+
+void Table::reset()
+{
+	this->n = 0;
+	this->sum = zeros(d);
+	this->scatter = eye(d);
 }
 
 Table::Table(Restaurant* cls, int n, Vector& sum, Matrix& scatter)
