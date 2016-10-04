@@ -12,16 +12,15 @@ public:
 	Vector sum;
 	int n;
 	Matrix scatter;
-	list<list<Table>::iterator> tables;
+	list<Table> tables;
 	void sampleTables(double minu);
-	void addStats(list<Table>::iterator table);
-	void addTable(list<Table>::iterator table);
+	void addStats(Table& table);
+	void addTable(Table& table);
 	void setDist(Vector& mu, Matrix& sigma);
 	void reset();
 	void resetStats();
 	void sampleParams();
-	list<Table>& tablestorage;
-	Restaurant(list<Table>& tablestorage);
+	Restaurant();
 	~Restaurant();
 };
 

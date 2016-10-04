@@ -90,10 +90,8 @@ Vector SliceSampler(Matrix& x, ThreadPool& workers)
 	Vector beta = ones(NINITIAL);
 	beta /= NINITIAL;
 	Vector z = zeros(n); // Component labels
-	list<Table> tables;
-
-	vector<Restaurant> clusters = vector<Restaurant>(1, tables);
-
+	vector<Restaurant> clusters = vector<Restaurant>(1);
+	vector<int> parents; // Parents of components
 	clusters[0].setDist(mu0, eye(d)/100);
 	clusters[0].sampleTables(0.1);
 	u = urand(n);
@@ -110,14 +108,13 @@ Vector SliceSampler(Matrix& x, ThreadPool& workers)
 		workers.waitAll();
 
 		// relabel, remove empty ones
-		NTABLE = relabel(z);
+		parents = relabel(z,c);
+		NTABLE = parents.size();
 		collector.reset();
 		for (auto i = 0; i < NTABLE; i++) {
 			workers.submit(collector);
 		}
 		workers.waitAll();
-
-
 		k = 0;
 		for (int i = 0; i < clusters.size(); i++)
 		{
@@ -127,7 +124,6 @@ Vector SliceSampler(Matrix& x, ThreadPool& workers)
 				k++;
 			}
 		}
-
 		for (int i = 0; i < clusters.size(); i++)
 			clusters[i].reset();
 		for (int i = 0; i < NTABLE; i++)
@@ -179,7 +175,6 @@ Vector SliceSampler(Matrix& x, ThreadPool& workers)
 				k = k + 1;
 			}
 		}
-
 
 		// Move tables in higher level
 		list<Table> l;

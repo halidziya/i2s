@@ -2,7 +2,7 @@
 
 
 
-Restaurant::Restaurant(list<Table>& tablestorage):tablestorage(tablestorage)
+Restaurant::Restaurant()
 {
 	reset();
 }
@@ -28,17 +28,17 @@ void Restaurant::sampleParams()
 }
 
 
-void  Restaurant::addTable(list<Table>::iterator table)
+void  Restaurant::addTable(Table& table)
 {
 	tables.push_back(table);
 	addStats(table);
 }
 
-void Restaurant::addStats(list<Table>::iterator table)
+void Restaurant::addStats(Table& table)
 {
-	scatter += table->scatter;
-	sum += table->dist.mu;
-	n += table->n;
+	scatter += table.scatter;
+	sum += table.dist.mu;
+	n += table.n;
 }
 
 
@@ -47,11 +47,8 @@ void Restaurant::sampleTables(double ustar)
 	// Create Betas
 	Vector valpha = zeros(tables.size()+1);
 	int i = 0;
-	for (auto ti : tables)
-	{
+	for (auto ti = tables.begin(); i < tables.size(); i++, ti++)
 		valpha[i] = ti->n;
-		i++;
-	}
 	valpha[i] = gamma;
 	Dirichlet dr(valpha);
 	beta = dr.rnd();
