@@ -90,6 +90,7 @@ Vector SliceSampler(Matrix& x, ThreadPool& workers)
 	Vector beta = ones(NINITIAL);
 	beta /= NINITIAL;
 	Vector z = zeros(n); // Component labels
+	vector<Table*> tablelist; // Component labels
 	vector<Restaurant> clusters = vector<Restaurant>(1);
 	vector<int> parents; // Parents of components
 	clusters[0].setDist(mu0, eye(d)/100);
@@ -107,41 +108,34 @@ Vector SliceSampler(Matrix& x, ThreadPool& workers)
 		}
 		workers.waitAll();
 
-		// relabel, remove empty ones
-		parents = relabel(z,c);
-		NTABLE = parents.size();
-		collector.reset();
-		for (auto i = 0; i < NTABLE; i++) {
-			workers.submit(collector);
-		}
-		workers.waitAll();
-		k = 0;
-		for (int i = 0; i < clusters.size(); i++)
-		{
-			for (auto& atable : clusters[i].tables)
-			{
-				parents[k] = i;
-				k++;
-			}
-		}
-		for (int i = 0; i < clusters.size(); i++)
-			clusters[i].reset();
-		for (int i = 0; i < NTABLE; i++)
-		{
-			Restaurant* cls = &clusters[parents[i]];
-			cls->addTable(Table(cls, collector.count[i], collector.sum[i], collector.scatter[i]));
-		}
-		// Sample Tables
-		for (int i = 0; i < clusters.size(); i++)
-			clusters[i].sampleTables(u.minimum());
 
 		// Auxilary variables
 		for (int i = 0; i < n; i++)
 			u[i] = clusters[c[i]].beta[z[i]] * urand();
 
+
+		// relabel, remove empty ones
+		parents = relabel(z,c);
+		NTABLE = parents.size();
+
+		collector.reset();
+		for (auto i = 0; i < NTABLE; i++) {
+			workers.submit(collector);
+		}
+		workers.waitAll();
+
+
+		for (int i = 0; i < clusters.size(); i++)
+			clusters[i].reset();
+
+		for (int i = 0; i < NTABLE; i++)
+		{
+			Restaurant* cls = &clusters[parents[i]];
+			cls->addTable(Table(cls, collector.count[i], collector.sum[i], collector.scatter[i]));
+		}
+
 		for (int i = 0; i < clusters.size(); i++)
 			clusters[i].id = i;
-
 		// Upper Layer
 		// Auxilary variables
 		
@@ -157,7 +151,6 @@ Vector SliceSampler(Matrix& x, ThreadPool& workers)
 		// Sample tables
 		
 		Vector likelihood(clusters.size());
-		parents.resize(k);
 		k = 0;
 		for (int i = 0; i < clusters.size(); i++)
 		{
@@ -170,24 +163,21 @@ Vector SliceSampler(Matrix& x, ThreadPool& workers)
 					else
 						likelihood[j] = -INFINITY;
 				}
-				atable.cls = & clusters[sampleFromLog(likelihood)];
-				parents[k] = atable.cls->id;
+				atable.cls = &clusters[sampleFromLog(likelihood)];
 				k = k + 1;
 			}
 		}
 
+
 		// Move tables in higher level
-		list<Table> l;
 		for (int i = 0; i < clusters.size(); i++)
 		{
+			clusters[i].resetStats();
 			for (auto& atable : clusters[i].tables)
-				if (atable.n > 0) // Do not sample empty tables
-					l.push_back(atable);
-			clusters[i].reset();
+				atable.cls->addStats(atable);
 		}
 
-		for (auto& atable : l)
-			atable.cls->addTable(atable);
+
 
 		for (auto cc = clusters.begin(); cc != clusters.end();)
 		{
@@ -216,7 +206,21 @@ Vector SliceSampler(Matrix& x, ThreadPool& workers)
 			clusters.push_back(Restaurant());
 
 		for (int i = 0; i < clusters.size(); i++)
+		{
 			clusters[i].sampleParams();
+			clusters[i].id = i;
+		}
+
+		for (int i = 0; i < z.n; i++)
+		{
+			c[i] = tablelist[z[i]]->cls->id;
+		}
+
+		// Sample Tables
+		for (int i = 0; i < clusters.size(); i++)
+			clusters[i].sampleTables(u.minimum());
+
+
 	}
 	/*
 	// Create Betas
