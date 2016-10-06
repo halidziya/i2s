@@ -70,6 +70,7 @@
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <IncludePath>C:\Users\hzyereba\Desktop\FastMat;$(IncludePath)</IncludePath>
+    <OutDir>..\run</OutDir>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <IncludePath>C:\Users\hzyereba\Desktop\FastMat;$(IncludePath)</IncludePath>

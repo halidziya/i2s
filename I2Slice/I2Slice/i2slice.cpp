@@ -54,28 +54,6 @@ public:
 };
 
 
-vector<int> relabel(Vector& labels,Vector& superlabels)
-{
-	for (int i = 0; i < labels.n; i++)
-	{
-		labels[i] = labels[i] + 1. / superlabels.n; // Dirty way, maybe I can create hierarhical unique labels later
-	}
-	Vector ulabels = labels.unique();
-	vector<int> parents(ulabels.n);
-	map<double, int> dict;
-	int j = 0;
-	for (int i = 0; i < ulabels.n; i++)
-	{
-		dict[ulabels(i)] = j++;
-	}
-
-	for (int i = 0; i < labels.n; i++)
-	{
-		labels[i] = dict[labels(i)];
-		parents[labels[i]] = superlabels[i];
-	}
-	return parents;
-}
 
 void reid(list<Table>& tables)
 {
@@ -85,7 +63,7 @@ void reid(list<Table>& tables)
 }
 
 
-Vector SliceSampler(Matrix& x, ThreadPool& workers)
+Matrix SliceSampler(Matrix& x, ThreadPool& workers)
 {
 	// Point level variables
 	int NTABLE = NINITIAL;
@@ -97,10 +75,12 @@ Vector SliceSampler(Matrix& x, ThreadPool& workers)
 	list<Table> tables; // Component labels
 	list<Restaurant> clusters = list<Restaurant>(1);
 	vector<int> parents; // Parents of components
-	clusters.begin()->setDist(mu0, eye(d));
+	clusters.begin()->sampleParams();
 	clusters.begin()->sampleTables(tables,0.1);
 	u = urand(n);
 	u *= clusters.begin()->beta.minimum();
+	Matrix zi((MAX_SWEEP - BURNIN) / STEP + 1,n);
+
 
 	CompTask cmsampler(x,z,u,c);
 	Collector  collector(x,z,tables.size());
@@ -131,6 +111,16 @@ Vector SliceSampler(Matrix& x, ThreadPool& workers)
 		workers.waitAll();
 		collector.subscatter(tables);
 
+		for (auto tt = tables.begin(); tt != tables.end();)
+		{
+			if (tt->n == 0)
+				tt = tables.erase(tt);
+			else
+				tt++;
+		}
+		
+		for (auto& table : tables)
+			table.sampleMean();
 
 
 		i = 0;
@@ -138,7 +128,8 @@ Vector SliceSampler(Matrix& x, ThreadPool& workers)
 			cluster.id = i++;
 		// Upper Layer
 		// Auxilary variables
-		
+
+
 		double ustar = 1;
 		for (auto& cluster : clusters)
 			for (auto& atable : cluster.tables) {
@@ -148,14 +139,6 @@ Vector SliceSampler(Matrix& x, ThreadPool& workers)
 					ustar = atable->u;
 			}
 		// Sample tables
-
-		for (auto tt = tables.begin(); tt != tables.end();)
-		{
-			if (tt->n == 0)
-					tt = tables.erase(tt);
-			else
-				tt++;
-		}
 
 		Vector likelihood(clusters.size());
 		vector<Restaurant*> cp = vector<Restaurant*>(clusters.size());
@@ -202,7 +185,7 @@ Vector SliceSampler(Matrix& x, ThreadPool& workers)
 		}
 
 		for (auto cc = clusters.begin(); cc != clusters.end();cc++)
-		cout << " " << cc->tables.size();
+		cout << " " << cc->n;
 		cout << endl;
 
 
@@ -235,16 +218,26 @@ Vector SliceSampler(Matrix& x, ThreadPool& workers)
 			c[i] = z[i]->cls;
 		}
 
+		if (iter > BURNIN && ((iter - BURNIN) % STEP == 0))
+			for (int i = 0; i < n; i++)
+				zi((iter - BURNIN) / STEP)[i] = c[i]->id;
+
 		// Sample Tables
 		for (auto& cluster : clusters)
-			cluster.sampleTables(tables,u.minimum());
+			if (cluster.n > 0)
+				cluster.sampleTables(tables,u.minimum());
 		for (auto& cluster : clusters) {
 			i = 0;
 			for (auto& table : cluster.tables)
 				table->id = i++;
 		}
+
+
+
 		for (i = 0; i < n; i++)
 			u[i] = c[i]->beta[z[i]->id] * urand();
+
+
 	}
 	/*
 	// Create Betas
@@ -263,9 +256,7 @@ Vector SliceSampler(Matrix& x, ThreadPool& workers)
 	// Add new tables, zero scatter
 	// 
 	*/
-	Vector zi(n);
-	for (int i = 0; i < n; i++)
-		zi[i] = z[i]->cls->id;
+
 	return zi;
 }
 
@@ -337,7 +328,7 @@ int main(int argc,char** argv)
 	if (argc > 3)
 		Psi.readBin(argv[3]);
 	else
-		Psi = (eye(d)).copy();
+		Psi = (x.cov()).copy();
 
 
 
