@@ -1,5 +1,5 @@
 #include "Restaurant.h"
-
+#include <iostream>
 
 
 Restaurant::Restaurant()
@@ -28,27 +28,28 @@ void Restaurant::sampleParams()
 }
 
 
-void  Restaurant::addTable(Table& table)
+void  Restaurant::addTable(Table* table)
 {
+
 	tables.push_back(table);
 	addStats(table);
 }
 
-void Restaurant::addStats(Table& table)
+void Restaurant::addStats(Table* table)
 {
-	scatter += table.scatter;
-	sum += table.dist.mu;
-	n += table.n;
+	scatter += table->scatter;
+	sum += table->dist.mu;
+	n += table->n;
 }
 
 
-void Restaurant::sampleTables(double ustar)
+void Restaurant::sampleTables(list<Table>& mainlist,double ustar)
 {
 	// Create Betas
 	Vector valpha = zeros(tables.size()+1);
 	int i = 0;
 	for (auto ti = tables.begin(); i < tables.size(); i++, ti++)
-		valpha[i] = ti->n;
+		valpha[i] = (*ti)->n;
 	valpha[i] = gamma;
 	Dirichlet dr(valpha);
 	beta = dr.rnd();
@@ -59,9 +60,9 @@ void Restaurant::sampleTables(double ustar)
 	Normal priormean(this->dist.mu, this->sigma / kappa1);
 	for (i = 0; i < newsticks.n; i++)
 	{
-		Table t = Table(priormean.rnd(), this->sigma);
-		t.cls = this;
-		tables.push_back(t);
+		mainlist.push_back(Table(priormean.rnd(), this->sigma));
+		mainlist.back().cls = this;
+		tables.push_back(&mainlist.back());
 	}
 }
 

@@ -2,7 +2,7 @@
 #include <iostream>
 
 
-CompTask::CompTask(Matrix& x, Vector& z, Vector& u,Vector& c, vector<Restaurant>& clusters) : x(x),c(c),u(u),z(z),clusters(clusters)
+CompTask::CompTask(Matrix& x, vector<Table*>& z, Vector& u, vector<Restaurant*>& c) : x(x),c(c),u(u),z(z)
 {
 }
 
@@ -18,7 +18,7 @@ void CompTask::run(int id) {
 		auto range = trange(n, nchunks, taskid); // 2xNumber of Threads chunks		
 		for (auto i = range[0]; i< range[1]; i++) // Operates on its own chunk
 		{
-			Restaurant& cl = clusters[c[i]];
+			Restaurant& cl = *c[i];
 			int NTABLE = cl.tables.size();
 			Vector likelihoods(NTABLE);
 			int j = 0;
@@ -26,7 +26,7 @@ void CompTask::run(int id) {
 			{
 				if (cl.beta[j] >= u[i])
 				{
-					likelihoods[j] = t.dist.likelihood(x(i)); //**
+					likelihoods[j] = t->dist.likelihood(x(i)); //**
 				}
 				else
 				{
@@ -34,7 +34,8 @@ void CompTask::run(int id) {
 				}
 				j++;
 			}
-			z[i] = sampleFromLog(likelihoods); //**
+			z[i] = cl.tables[sampleFromLog(likelihoods)]; //**
+
 		}
 	}
 

@@ -12,10 +12,10 @@ public:
 	Vector sum;
 	int n;
 	Matrix scatter;
-	list<Table> tables;
-	void sampleTables(double minu);
-	void addStats(Table& table);
-	void addTable(Table& table);
+	vector<Table*> tables;
+	void sampleTables(list<Table>& mainlist,double minu);
+	void addStats(Table* table);
+	void addTable(Table* table);
 	void setDist(Vector& mu, Matrix& sigma);
 	void reset();
 	void resetStats();

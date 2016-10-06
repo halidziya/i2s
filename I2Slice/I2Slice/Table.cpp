@@ -19,7 +19,7 @@ void Table::reset()
 {
 	this->n = 0;
 	this->sum = zeros(d);
-	this->scatter = eye(d);
+	this->scatter = zeros(d,d);
 }
 
 Table::Table(Restaurant* cls, int n, Vector& sum, Matrix& scatter)

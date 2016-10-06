@@ -17,20 +17,22 @@ class Collector : public Task
 {
 public:
 	Matrix& x;
-	Vector& labels;
-	Vector count;
-	vector<Matrix> scatter;
-	vector<Vector> sum;
+	vector<Table*>& labels;
 	atomic<int> taskid;
+	int ntable;
 
-	Collector(Matrix& x, Vector& labels) : x(x), labels(labels) {
+	Collector(Matrix& x, vector<Table*>& labels,int ntable) : x(x), labels(labels) , ntable(ntable) {
 	}
 
-	void reset() {
-		int vsize = labels.maximum() + 1;
-		count = zeros(vsize);
-		scatter = vector<Matrix>(vsize, zeros(d, d));
-		sum = vector<Vector>(vsize, zeros(d));
+	void reset(list<Table>& tables) {
+		for (auto& atable : tables)
+			atable.reset();
+		taskid = 0;
+	}
+
+	void subscatter(list<Table>& tables) {
+		for (auto& atable : tables)
+			atable.scatter -= ((atable.sum >> atable.sum) / atable.n); // Actual Scatter
 		taskid = 0;
 	}
 
@@ -38,20 +40,16 @@ public:
 		// Use thread specific buffer
 		SETUP_ID()
 		int taskid = this->taskid++;
-		int maxlab = labels.maximum();
-		int label;
 		for (int i = 0; i < n; i++)
 		{
-			label = labels(i);
-			if (label == taskid) // Distributed according to label id
+			if (labels[i]->id == taskid) // Distributed according to label id
 			{
-				count[label] += 1;
-				sum[label] += x(i);
-				scatter[label] += x(i) >> x(i); // Second moment actually
+				labels[i]->n += 1;
+				labels[i]->sum += x(i);
+				labels[i]->scatter += x(i) >> x(i); // Second moment actually
 			}
 		}
-
-		scatter[taskid] -= ((sum[taskid] >> sum[taskid]) / count[taskid]); // Actual Scatter
+		
 	}
 };
 
@@ -79,6 +77,12 @@ vector<int> relabel(Vector& labels,Vector& superlabels)
 	return parents;
 }
 
+void reid(list<Table>& tables)
+{
+	int i = 0;
+	for (auto& atable : tables)
+		atable.id = i++;
+}
 
 
 Vector SliceSampler(Matrix& x, ThreadPool& workers)
@@ -86,106 +90,121 @@ Vector SliceSampler(Matrix& x, ThreadPool& workers)
 	// Point level variables
 	int NTABLE = NINITIAL;
 	Vector u = ones(n);
-	Vector c = zeros(n); // Cluster labels
 	Vector beta = ones(NINITIAL);
 	beta /= NINITIAL;
-	Vector z = zeros(n); // Component labels
-	vector<Table*> tablelist; // Component labels
-	vector<Restaurant> clusters = vector<Restaurant>(1);
+	vector<Table*> z = vector<Table*>(n); // Component labels
+	vector<Restaurant*> c = vector<Restaurant*>(n);
+	list<Table> tables; // Component labels
+	list<Restaurant> clusters = list<Restaurant>(1);
 	vector<int> parents; // Parents of components
-	clusters[0].setDist(mu0, eye(d)/100);
-	clusters[0].sampleTables(0.1);
+	clusters.begin()->setDist(mu0, eye(d));
+	clusters.begin()->sampleTables(tables,0.1);
 	u = urand(n);
-	u *= clusters[0].beta.minimum();
+	u *= clusters.begin()->beta.minimum();
 
-	CompTask cmsampler(x,z,u,c,clusters);
-	Collector  collector(x,z);
-	int k = 0;
-	for (int iter = 0; iter < 100; iter++) {
+	CompTask cmsampler(x,z,u,c);
+	Collector  collector(x,z,tables.size());
+	int k = 0,i=0,j=0;
+		for (i = 0; i < n; i++)
+			u[i] = clusters.begin()->beta[0] * urand();
+
+	for (i = 0; i < n; i++)
+		c[i] = &(*clusters.begin());
+	for (int iter = 0; iter < MAX_SWEEP; iter++) {
 		cmsampler.reset(2 * nthd);
 		for (auto i = 0; i < cmsampler.nchunks; i++) {
 			workers.submit(cmsampler);
 		}
 		workers.waitAll();
-
-
+		cout << iter << endl;
+		reid(tables);
 		// Auxilary variables
-		for (int i = 0; i < n; i++)
-			u[i] = clusters[c[i]].beta[z[i]] * urand();
-
 
 		// relabel, remove empty ones
-		parents = relabel(z,c);
-		NTABLE = parents.size();
-
-		collector.reset();
-		for (auto i = 0; i < NTABLE; i++) {
+		//parents = relabel(z,c);
+		//NTABLE = parents.size();
+		NTABLE = tables.size();
+		collector.reset(tables);
+		for (i = 0; i < NTABLE; i++) {
 			workers.submit(collector);
 		}
 		workers.waitAll();
+		collector.subscatter(tables);
 
 
-		for (int i = 0; i < clusters.size(); i++)
-			clusters[i].reset();
 
-		for (int i = 0; i < NTABLE; i++)
-		{
-			Restaurant* cls = &clusters[parents[i]];
-			cls->addTable(Table(cls, collector.count[i], collector.sum[i], collector.scatter[i]));
-		}
-
-		for (int i = 0; i < clusters.size(); i++)
-			clusters[i].id = i;
+		i = 0;
+		for (auto& cluster : clusters)
+			cluster.id = i++;
 		// Upper Layer
 		// Auxilary variables
 		
 		double ustar = 1;
-		for (int i = 0; i < clusters.size(); i++)
-			for (auto& atable : clusters[i].tables) {
-					printf("%d\n", atable.cls->id);
-				atable.u = beta[atable.cls->id] * urand();
+		for (auto& cluster : clusters)
+			for (auto& atable : cluster.tables) {
+				atable->u = beta[atable->cls->id] * urand();
 				k = k + 1;
-				if ((atable.n) >0 &&  (atable.u < ustar))
-					ustar = atable.u;
+				if ((atable->n) >0 &&  (atable->u < ustar))
+					ustar = atable->u;
 			}
 		// Sample tables
-		
-		Vector likelihood(clusters.size());
-		k = 0;
-		for (int i = 0; i < clusters.size(); i++)
+
+		for (auto tt = tables.begin(); tt != tables.end();)
 		{
-			for (auto& atable : clusters[i].tables)
+			if (tt->n == 0)
+					tt = tables.erase(tt);
+			else
+				tt++;
+		}
+
+		Vector likelihood(clusters.size());
+		vector<Restaurant*> cp = vector<Restaurant*>(clusters.size());
+		i = 0;
+		for (auto& cluster : clusters)
+		{
+			cp[i] = &cluster;
+			i++;
+		}
+		for (auto& atable : tables)
+		{
+			j = 0;
+			for (auto& cluster : clusters)
 			{
-				for (int j = 0; j < clusters.size(); j++)
-				{
-					if (atable.u <= beta[j])
-						likelihood[j] = clusters[j].dist.likelihood(atable.dist.mu);
-					else
-						likelihood[j] = -INFINITY;
-				}
-				atable.cls = &clusters[sampleFromLog(likelihood)];
-				k = k + 1;
+				if (atable.u <= beta[j])
+					likelihood[j] = cluster.dist.likelihood(atable.dist.mu);
+				else
+					likelihood[j] = -INFINITY;
+				j++;
 			}
+			atable.cls = cp[sampleFromLog(likelihood)];
+
 		}
 
 
 		// Move tables in higher level
-		for (int i = 0; i < clusters.size(); i++)
+		for (auto& cluster : clusters)
+			cluster.reset();
+
+		for (auto& atable : tables)
 		{
-			clusters[i].resetStats();
-			for (auto& atable : clusters[i].tables)
-				atable.cls->addStats(atable);
+			atable.cls->addTable(&atable);
 		}
 
 
 
 		for (auto cc = clusters.begin(); cc != clusters.end();)
 		{
+			
 			if (cc->n == 0)
 				cc = clusters.erase(cc);
 			else
 				cc++;
 		}
+
+		for (auto cc = clusters.begin(); cc != clusters.end();cc++)
+		cout << " " << cc->tables.size();
+		cout << endl;
+
 
 		// Cluster level beta variable
 		Vector valpha = zeros(clusters.size() + 1);
@@ -201,26 +220,31 @@ Vector SliceSampler(Matrix& x, ThreadPool& workers)
 		beta = beta.append(newsticks);
 
 		//Remove unused clusters
-
 		for (int i = clusters.size(); i < beta.n; i++)
 			clusters.push_back(Restaurant());
 
-		for (int i = 0; i < clusters.size(); i++)
+		i = 0;
+		for (auto& cluster : clusters)
 		{
-			clusters[i].sampleParams();
-			clusters[i].id = i;
+			cluster.sampleParams();
+			cluster.id = i++;
 		}
 
-		for (int i = 0; i < z.n; i++)
+		for (int i = 0; i < n; i++)
 		{
-			c[i] = tablelist[z[i]]->cls->id;
+			c[i] = z[i]->cls;
 		}
 
 		// Sample Tables
-		for (int i = 0; i < clusters.size(); i++)
-			clusters[i].sampleTables(u.minimum());
-
-
+		for (auto& cluster : clusters)
+			cluster.sampleTables(tables,u.minimum());
+		for (auto& cluster : clusters) {
+			i = 0;
+			for (auto& table : cluster.tables)
+				table->id = i++;
+		}
+		for (i = 0; i < n; i++)
+			u[i] = c[i]->beta[z[i]->id] * urand();
 	}
 	/*
 	// Create Betas
@@ -239,7 +263,10 @@ Vector SliceSampler(Matrix& x, ThreadPool& workers)
 	// Add new tables, zero scatter
 	// 
 	*/
-	return z;
+	Vector zi(n);
+	for (int i = 0; i < n; i++)
+		zi[i] = z[i]->cls->id;
+	return zi;
 }
 
 
@@ -263,7 +290,7 @@ int main(int argc,char** argv)
 		return -1;
 	}
 	cout << "NPOINTS :" << x.r << " NDIMS:" << x.m << endl;
-	nthd = 1;// thread::hardware_concurrency();
+	nthd = thread::hardware_concurrency();
 	n = x.r; // Number of Points
 	d = x.m;
 	init_buffer(nthd, x.m);

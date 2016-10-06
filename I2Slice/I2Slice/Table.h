@@ -7,9 +7,11 @@ public:
 	Normal dist;
 	int n;
 	Vector sum;
-	double u=0;
 	Matrix scatter;
-	Restaurant* cls;
+	double u=0;
+	
+	Restaurant* cls=NULL;
+	int id;
 	Table();
 	~Table();
 	Table(Vector& mu, Matrix& sigma);
