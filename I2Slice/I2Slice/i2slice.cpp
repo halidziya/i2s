@@ -6,10 +6,11 @@
 #include <map>
 
 
-int MAX_SWEEP = 500;
+int MAX_SWEEP = 1000;
 int NINITIAL = 1;
-int BURNIN = 300;
-int STEP = (MAX_SWEEP - BURNIN) / 10; // Default value is 10 sample + 1 post burnin
+int BURNIN = 500;
+int NSAMPLE = 500;
+int STEP = (MAX_SWEEP - BURNIN)/ NSAMPLE; // Default value is 10 sample + 1 post burnin
 
 
 
@@ -63,34 +64,43 @@ void reid(list<Table>& tables)
 }
 
 
-Matrix SliceSampler(Matrix& x, ThreadPool& workers)
+Matrix SliceSampler(Matrix& x, ThreadPool& workers,Matrix& superlabels)
 {
+
+	
 	// Point level variables
 	int NTABLE = NINITIAL;
+	int k = 0, i = 0, j = 0;
 	Vector u = ones(n);
 	Vector beta = ones(NINITIAL);
 	beta /= NINITIAL;
 	vector<Table*> z = vector<Table*>(n); // Component labels
 	vector<Restaurant*> c = vector<Restaurant*>(n);
 	list<Table> tables; // Component labels
-	list<Restaurant> clusters = list<Restaurant>(1);
+	list<Restaurant> clusters = list<Restaurant>(NINITIAL);
+	vector<Restaurant*> cp = vector<Restaurant*>(clusters.size());
 	vector<int> parents; // Parents of components
-	clusters.begin()->sampleParams();
-	clusters.begin()->sampleTables(tables,0.1);
-	u = urand(n);
-	u *= clusters.begin()->beta.minimum();
+	
+
+	for (auto& cluster : clusters)
+	{
+		cluster.sampleParams();
+		cluster.sampleTables(tables, 0.1);
+		cp[i++] = &cluster;
+	}
+	for (int i = 0; i < n; i++)
+	{
+		c[i] = cp[rand()%NINITIAL];
+		j = rand() % c[i]->tables.size();
+		z[i] = c[i]->tables[j];
+		u[i] = c[i]->beta[j] * urand();
+	}
+
 	Matrix zi((MAX_SWEEP - BURNIN) / STEP + 1,n);
-
-
 	CompTask cmsampler(x,z,u,c);
 	Collector  collector(x,z,tables.size());
-	int k = 0,i=0,j=0;
-		for (i = 0; i < n; i++)
-			u[i] = clusters.begin()->beta[0] * urand();
 
-	for (i = 0; i < n; i++)
-		c[i] = &(*clusters.begin());
-	for (int iter = 0; iter < MAX_SWEEP; iter++) {
+	for (int iter = 0; iter <= MAX_SWEEP; iter++) {
 		cmsampler.reset(2 * nthd);
 		for (auto i = 0; i < cmsampler.nchunks; i++) {
 			workers.submit(cmsampler);
@@ -111,6 +121,15 @@ Matrix SliceSampler(Matrix& x, ThreadPool& workers)
 		workers.waitAll();
 		collector.subscatter(tables);
 
+		for (auto& cluster : clusters)
+			for (auto tt = cluster.tables.begin(); tt != cluster.tables.end();)
+			{
+				if ((*tt)->n == 0)
+					tt = cluster.tables.erase(tt);
+				else
+					tt++;
+			}
+				
 		for (auto tt = tables.begin(); tt != tables.end();)
 		{
 			if (tt->n == 0)
@@ -118,7 +137,8 @@ Matrix SliceSampler(Matrix& x, ThreadPool& workers)
 			else
 				tt++;
 		}
-		
+
+
 		for (auto& table : tables)
 			table.sampleMean();
 
@@ -142,12 +162,15 @@ Matrix SliceSampler(Matrix& x, ThreadPool& workers)
 
 		Vector likelihood(clusters.size());
 		vector<Restaurant*> cp = vector<Restaurant*>(clusters.size());
+		vector<int> cidx = vector<int>(tables.size());
 		i = 0;
 		for (auto& cluster : clusters)
 		{
 			cp[i] = &cluster;
 			i++;
 		}
+
+		i = 0;
 		for (auto& atable : tables)
 		{
 			j = 0;
@@ -156,12 +179,48 @@ Matrix SliceSampler(Matrix& x, ThreadPool& workers)
 				if (atable.u <= beta[j])
 					likelihood[j] = cluster.dist.likelihood(atable.dist.mu);
 				else
+				{
 					likelihood[j] = -INFINITY;
+				}
 				j++;
 			}
-			atable.cls = cp[sampleFromLog(likelihood)];
-
+			cidx[i] = sampleFromLog(likelihood);
+			if (atable.cls->id !=0 && cidx[i] == 0)
+				cout << "First";
+			atable.cls = cp[cidx[i]];
+			i++;
 		}
+
+
+		for (auto& cluster : clusters)
+			cluster.reset();
+
+		for (auto& atable : tables)
+		{
+			atable.cls->addStats(&atable);
+		}
+
+		////Metropolis Hasting Step
+		//i = 0;
+		//for (auto& atable : tables)
+		//{
+		//	int idx = rand() % cp.size();
+		//	Restaurant* randclust = cp[idx];
+		//	if (randclust != atable.cls)
+		//	{
+		//		priormean = Normal(mu0, priorcov.rnd() / kappa0);
+		//		Normal dist1 = Normal(Normal((mu0*kappa0 + randclust->sum + atable.dist.mu) / (kappa0 + randclust->nt + 1), randclust->sigma / (kappa0 + randclust->nt + 1)).rnd(), randclust->sigma / kappa1);
+		//		double mhratio = dist1.likelihood(atable.dist.mu) + log(beta[idx]) + priormean.likelihood(dist1.mu)
+		//			- atable.cls->dist.likelihood(atable.dist.mu) - log(beta[cidx[i]]) - priormean.likelihood(randclust->dist.mu);
+		//		if (rand() < exp(mhratio)) // Accept
+		//		{
+		//			cidx[i] = idx;
+		//			atable.cls =randclust;
+		//		}
+		//	}
+		//	i++;
+		//}
+		//cout << endl;
 
 
 		// Move tables in higher level
@@ -172,6 +231,7 @@ Matrix SliceSampler(Matrix& x, ThreadPool& workers)
 		{
 			atable.cls->addTable(&atable);
 		}
+
 
 
 
@@ -193,7 +253,7 @@ Matrix SliceSampler(Matrix& x, ThreadPool& workers)
 		Vector valpha = zeros(clusters.size() + 1);
 		int i = 0;
 		for (auto ti = clusters.begin(); i < clusters.size(); i++, ti++)
-			valpha[i] = ti->tables.size();
+			valpha[i] = ti->n; // ti->tables.size();
 		valpha[i] = gamma;
 		Dirichlet dr(valpha);
 		beta = dr.rnd();
@@ -220,7 +280,10 @@ Matrix SliceSampler(Matrix& x, ThreadPool& workers)
 
 		if (iter > BURNIN && ((iter - BURNIN) % STEP == 0))
 			for (int i = 0; i < n; i++)
-				zi((iter - BURNIN) / STEP)[i] = c[i]->id;
+			{
+				zi((iter - BURNIN) / STEP)[i] = z[i]->id;
+				superlabels((iter - BURNIN) / STEP)[i] = c[i]->id;
+			}
 
 		// Sample Tables
 		for (auto& cluster : clusters)
@@ -232,31 +295,15 @@ Matrix SliceSampler(Matrix& x, ThreadPool& workers)
 				table->id = i++;
 		}
 
-
+		for (auto& table : tables)
+			cout << table.n << " ";
+		cout << endl;
 
 		for (i = 0; i < n; i++)
 			u[i] = c[i]->beta[z[i]->id] * urand();
 
 
-	}
-	/*
-	// Create Betas
-	Vector alpha = collector.count.append(gamma);
-	Dirichlet dr(alpha);
-	beta = dr.rnd();
-
-	// Sample U
-	u = rand(n);
-	u *= beta[z];
-	//New Sticks
-	double ustar = u.minimum();
-	Vector newsticks = stickBreaker(ustar, beta[beta.n - 1], gamma);
-
-	// Distribute B by assigning to its table
-	// Add new tables, zero scatter
-	// 
-	*/
-
+	}	
 	return zi;
 }
 
@@ -281,7 +328,7 @@ int main(int argc,char** argv)
 		return -1;
 	}
 	cout << "NPOINTS :" << x.r << " NDIMS:" << x.m << endl;
-	nthd = thread::hardware_concurrency();
+	nthd =  thread::hardware_concurrency();
 	n = x.r; // Number of Points
 	d = x.m;
 	init_buffer(nthd, x.m);
@@ -321,7 +368,7 @@ int main(int argc,char** argv)
 		m = x.m + 3;
 		kappa0 = 1;
 		kappa1 = 1;
-		gamma = 1;
+		gamma = 10;
 		alpha = 1;
 	}
 
@@ -340,11 +387,19 @@ int main(int argc,char** argv)
 		BURNIN = atoi(argv[6]);
 
 	if (argc > 7)
-		STEP = (MAX_SWEEP - BURNIN) / atoi(argv[7]);
+	{
+		NSAMPLE = atoi(argv[7]);
+		STEP = (MAX_SWEEP - BURNIN) / NSAMPLE;
+	}
 
 
 	ThreadPool tpool(nthd);
-	auto labels = SliceSampler(x,tpool); // data,m,kappa,gamma,mean,cov 
+	Matrix superlabels((MAX_SWEEP - BURNIN) / STEP + 1, n);
+	priorcov  = IWishart(Psi,m);
+	priormean = Normal(mu0, priorcov.rnd()/kappa0);
+	auto labels = SliceSampler(x,tpool,superlabels); // data,m,kappa,gamma,mean,cov 
 	string filename = argv[1];
 	labels.writeBin(filename.append(".labels").c_str());
+	filename = argv[1];
+	superlabels.writeBin(filename.append(".superlabels").c_str());
 }

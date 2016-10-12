@@ -11,6 +11,7 @@ public:
 	int id = 0;
 	Vector sum;
 	int n;
+	int nt;
 	Matrix scatter;
 	vector<Table*> tables;
 	void sampleTables(list<Table>& mainlist,double minu);

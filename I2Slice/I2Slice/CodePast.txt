@@ -1,0 +1,93 @@
+			if (isnan(likelihoods[0]))
+			{
+				cout << "U : " << u[i] << " NTABLE:" << NTABLE << endl;
+				cl.beta.print();
+				likelihoods.print();
+				j = 0;
+				for (auto& t : cl.tables)
+				{
+					if (cl.beta[j] >= u[i])
+					{
+						cout << t->dist.likelihood(x(i)) << " ";
+						likelihoods[j] = t->dist.likelihood(x(i)); //**
+					}
+					else
+					{
+						cout << -INFINITY << " ";
+						likelihoods[j] = -INFINITY;
+					}
+					j++;
+				}
+				likelihoods.print();
+				for (auto& t : cl.tables)
+					cout << t->dist.likelihood(x(i)) << " ";
+				cout << endl;
+				
+				for (int j = 0; j < cl.beta.n; j++)
+					cout << (u[i] < cl.beta[j]) << endl;
+				cout << "wrong";
+			}
+
+
+
+						if (atable.cls == NULL)
+			{
+				likelihood.print();
+				j = 0;
+				atable.dist.mu.print();
+				for (auto& cluster : clusters)
+				{
+					likelihood[j] = cluster.dist.likelihood(atable.dist.mu);
+					cluster.dist.mu.print();
+					j++;
+				}
+				likelihood.print();
+				cout << "Wrong";
+			}
+
+
+
+			
+vector<int> relabel(Vector& labels,Vector& superlabels)
+{
+	for (int i = 0; i < labels.n; i++)
+	{
+		labels[i] = labels[i] + 1. / superlabels.n; // Dirty way, maybe I can create hierarhical unique labels later
+	}
+	Vector ulabels = labels.unique();
+	vector<int> parents(ulabels.n);
+	map<double, int> dict;
+	int j = 0;
+	for (int i = 0; i < ulabels.n; i++)
+	{
+		dict[ulabels(i)] = j++;
+	}
+
+	for (int i = 0; i < labels.n; i++)
+	{
+		labels[i] = dict[labels(i)];
+		parents[labels[i]] = superlabels[i];
+	}
+	return parents;
+}
+
+
+
+
+	/*
+	// Create Betas
+	Vector alpha = collector.count.append(gamma);
+	Dirichlet dr(alpha);
+	beta = dr.rnd();
+
+	// Sample U
+	u = rand(n);
+	u *= beta[z];
+	//New Sticks
+	double ustar = u.minimum();
+	Vector newsticks = stickBreaker(ustar, beta[beta.n - 1], gamma);
+
+	// Distribute B by assigning to its table
+	// Add new tables, zero scatter
+	// 
+	*/

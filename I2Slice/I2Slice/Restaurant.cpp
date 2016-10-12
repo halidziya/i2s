@@ -18,19 +18,24 @@ void Restaurant::resetStats()
 	scatter = zeros(d, d);
 	sum = zeros(d);
 	n = 0;
+	nt = 0;
 }
 
 void Restaurant::sampleParams()
 {
 	Matrix otherscatter = zeros(d, d);
+	if (tables.size() > 0)
+	{
+		Vector& diff = (mu0 - (sum / tables.size()));
+		otherscatter = (diff >> diff)*(kappa0*tables.size() / (kappa0 + tables.size()));
+	}
 	sigma = IWishart(Psi + scatter + otherscatter, n + m).rnd();
-	dist = Normal(Normal((mu0*kappa0 + sum) / (kappa0 + tables.size()), sigma / kappa1).rnd(), sigma);
+	dist = Normal(Normal((mu0*kappa0 + sum) / (kappa0 + tables.size()), sigma / (kappa0 + tables.size())).rnd(), sigma/kappa1);
 }
 
 
 void  Restaurant::addTable(Table* table)
 {
-
 	tables.push_back(table);
 	addStats(table);
 }
@@ -40,6 +45,7 @@ void Restaurant::addStats(Table* table)
 	scatter += table->scatter;
 	sum += table->dist.mu;
 	n += table->n;
+	nt += 1;
 }
 
 
@@ -50,7 +56,7 @@ void Restaurant::sampleTables(list<Table>& mainlist,double ustar)
 	int i = 0;
 	for (auto ti = tables.begin(); i < tables.size(); i++, ti++)
 		valpha[i] = (*ti)->n;
-	valpha[i] = gamma;
+	valpha[i] = alpha;
 	Dirichlet dr(valpha);
 	beta = dr.rnd();
 	//New Sticks
