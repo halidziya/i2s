@@ -8,6 +8,7 @@ public:
 	int n;
 	Vector sum;
 	Matrix scatter;
+	double beta;
 	double u=0;
 	
 	Restaurant* cls=NULL;

@@ -6,10 +6,10 @@
 #include <map>
 
 
-int MAX_SWEEP = 1000;
-int NINITIAL = 1;
-int BURNIN = 500;
-int NSAMPLE = 500;
+int MAX_SWEEP = 1700;
+int NINITIAL = 4;
+int BURNIN = 1600;
+int NSAMPLE = 100;
 int STEP = (MAX_SWEEP - BURNIN)/ NSAMPLE; // Default value is 10 sample + 1 post burnin
 
 
@@ -85,7 +85,7 @@ Matrix SliceSampler(Matrix& x, ThreadPool& workers,Matrix& superlabels)
 	for (auto& cluster : clusters)
 	{
 		cluster.sampleParams();
-		cluster.sampleTables(tables, 0.1);
+		cluster.sampleTables(tables, 0.0005);
 		cp[i++] = &cluster;
 	}
 	for (int i = 0; i < n; i++)
@@ -171,34 +171,54 @@ Matrix SliceSampler(Matrix& x, ThreadPool& workers,Matrix& superlabels)
 		}
 
 		i = 0;
+//		int maxi;
+//		double maxli = -INFINITY;
 		for (auto& atable : tables)
 		{
 			j = 0;
+			//maxli = -INFINITY;
 			for (auto& cluster : clusters)
 			{
 				if (atable.u <= beta[j])
+				{
 					likelihood[j] = cluster.dist.likelihood(atable.dist.mu);
+					likelihood[j] += Wishart(cluster.sigma, atable.n+m).likelihood(atable.scatter+ Psi);
+					//for (auto& btable : cluster.tables)
+					//{
+					//	likelihood[j] += btable->dist.likelihood(atable.dist.mu);
+					//	//likelihood[j] += Wishart((btable->scatter+ Psi)/(btable->n + m), atable.n + m).likelihood(atable.scatter + Psi);
+
+					//}
+					//likelihood[j] /= (cluster.tables.size()+1);
+				}
 				else
 				{
 					likelihood[j] = -INFINITY;
 				}
+				//if (likelihood[j] > maxli)
+				//{
+				//	maxli = likelihood[j];
+				//	maxi = j;
+				//}
 				j++;
 			}
-			cidx[i] = sampleFromLog(likelihood);
-			if (atable.cls->id !=0 && cidx[i] == 0)
-				cout << "First";
+			//if (iter > 500)
+			//	cidx[i] = maxi;//sampleFromLog(likelihood);
+			//else
+				cidx[i] = sampleFromLog(likelihood);
 			atable.cls = cp[cidx[i]];
+			
 			i++;
 		}
 
 
-		for (auto& cluster : clusters)
-			cluster.reset();
+		//for (auto& cluster : clusters)
+		//	cluster.reset();
 
-		for (auto& atable : tables)
-		{
-			atable.cls->addStats(&atable);
-		}
+		//for (auto& atable : tables)
+		//{
+		//	atable.cls->addStats(&atable);
+		//}
 
 		////Metropolis Hasting Step
 		//i = 0;
@@ -209,9 +229,11 @@ Matrix SliceSampler(Matrix& x, ThreadPool& workers,Matrix& superlabels)
 		//	if (randclust != atable.cls)
 		//	{
 		//		priormean = Normal(mu0, priorcov.rnd() / kappa0);
+		//		if (randclust->n == 0)
+		//			randclust->sigma = IWishart(atable.scatter + Psi, atable.n + m).rnd();
 		//		Normal dist1 = Normal(Normal((mu0*kappa0 + randclust->sum + atable.dist.mu) / (kappa0 + randclust->nt + 1), randclust->sigma / (kappa0 + randclust->nt + 1)).rnd(), randclust->sigma / kappa1);
-		//		double mhratio = dist1.likelihood(atable.dist.mu) + log(beta[idx]) + priormean.likelihood(dist1.mu)
-		//			- atable.cls->dist.likelihood(atable.dist.mu) - log(beta[cidx[i]]) - priormean.likelihood(randclust->dist.mu);
+		//		double mhratio = dist1.likelihood(atable.dist.mu) + log(beta[idx]) + priormean.likelihood(dist1.mu) + Wishart(randclust->sigma, atable.n + m).likelihood(atable.scatter + Psi)
+		//			- atable.cls->dist.likelihood(atable.dist.mu) - log(beta[cidx[i]]) - priormean.likelihood(randclust->dist.mu) -  Wishart(atable.cls->sigma, atable.n + m).likelihood(atable.scatter + Psi);;
 		//		if (rand() < exp(mhratio)) // Accept
 		//		{
 		//			cidx[i] = idx;
@@ -296,7 +318,10 @@ Matrix SliceSampler(Matrix& x, ThreadPool& workers,Matrix& superlabels)
 		}
 
 		for (auto& table : tables)
+		{
+			table.dist = Normal(table.dist.mu, table.cls->sigma);
 			cout << table.n << " ";
+		}
 		cout << endl;
 
 		for (i = 0; i < n; i++)
@@ -308,7 +333,7 @@ Matrix SliceSampler(Matrix& x, ThreadPool& workers,Matrix& superlabels)
 }
 
 
-int main(int argc,char** argv)
+int imain(int argc,char** argv)
 {
 
 	Matrix x;
@@ -365,17 +390,17 @@ int main(int argc,char** argv)
 	}
 	else
 	{
-		m = x.m + 3;
-		kappa0 = 1;
-		kappa1 = 1;
-		gamma = 10;
+		m = x.m + 2;
+		kappa0 = .05;
+		kappa1 = .5;
+		gamma = 1;
 		alpha = 1;
 	}
 
 	if (argc > 3)
 		Psi.readBin(argv[3]);
 	else
-		Psi = (x.cov()).copy();
+		Psi = (x.cov()/100).copy();
 
 
 

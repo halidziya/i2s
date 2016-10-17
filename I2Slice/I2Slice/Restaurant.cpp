@@ -28,8 +28,12 @@ void Restaurant::sampleParams()
 	{
 		Vector& diff = (mu0 - (sum / tables.size()));
 		otherscatter = (diff >> diff)*(kappa0*tables.size() / (kappa0 + tables.size()));
+		for (auto& atable : tables)
+		{
+			otherscatter += (atable->dist.mu - dist.mu) >> (atable->dist.mu - dist.mu);
+		}
 	}
-	sigma = IWishart(Psi + scatter + otherscatter, n + m).rnd();
+	sigma = IWishart(Psi + scatter + otherscatter , n + m + tables.size()).rnd();
 	dist = Normal(Normal((mu0*kappa0 + sum) / (kappa0 + tables.size()), sigma / (kappa0 + tables.size())).rnd(), sigma/kappa1);
 }
 
@@ -69,6 +73,11 @@ void Restaurant::sampleTables(list<Table>& mainlist,double ustar)
 		mainlist.push_back(Table(priormean.rnd(), this->sigma));
 		mainlist.back().cls = this;
 		tables.push_back(&mainlist.back());
+	}
+	i = 0;
+	for (auto& atable : tables)
+	{
+		atable->beta = beta[i++];
 	}
 }
 

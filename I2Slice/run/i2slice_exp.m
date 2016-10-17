@@ -24,8 +24,12 @@ for datai=1:length(names)
 
     slabels=readMat(char(strcat(prefix ,names(datai),'.matrix.superlabels')))+1;
     labels=readMat(char(strcat(prefix ,names(datai),'.matrix.labels')))+1;
-    for i=1:2
-    animateHierarchicalData(X,slabels,labels)
+    alabels = align_labels(labels((end-20):end,:)');
+    f1s=evaluationTable(Y(Y~=0),alabels(Y~=0))
+    
+    for i=1:1
+        animateHierarchicalData(X,slabels,labels)
     end
+    
 
 end
