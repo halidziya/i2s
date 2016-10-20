@@ -2,7 +2,6 @@
 #include <stdlib.h>
 #include <vector>
 #include "FastMat.h"
-#include "Dish.h"
 #include "Restaurant.h"
 #include <thread>  
 #include <iostream>
@@ -42,10 +41,10 @@ public:
 			for (auto i = range[0]; i< range[1]; i++) // Operates on its own chunk
 			{
 				Restaurant& cl = *c[i];
-				int NTABLE = cl.tables.size();
+				int NTABLE = tables.size();
 				Vector likelihoods(NTABLE);
 				int j = 0;
-				for (auto& t : cl.tables)
+				for (auto& t : tables)
 				{
 					if ( (t->beta >= u[i]))
 					{
@@ -57,7 +56,7 @@ public:
 					}
 					j++;
 				}
-				z[i] = cl.tables[sampleFromLog(likelihoods)]; //**
+				z[i] = tables[sampleFromLog(likelihoods)]; //**
 			}
 		}
 
@@ -111,6 +110,37 @@ public:
 };
 
 
+class Cluster : public Task
+{
+public:
+	atomic<int> taskid;
+	Vector& logprobs;
+	Table& atable;
+	vector<Restaurant*>& cp;
+	Cluster(Vector& logprobs,Table& atable, vector<Restaurant*>& cp) : logprobs(logprobs),atable(atable),cp(cp) {
+		taskid = 0;
+	}
+	void run(int id) {
+		// Use thread specific buffer
+		SETUP_ID()
+		int taskid = this->taskid++;
+		double logprob;
+			auto cc = cp[taskid];
+			if (cc->nt == 0)
+				logprobs[taskid] = -INFINITY;
+			else
+			{
+				logprob = 0;
+				for (auto points = atable.plist.begin(); points != atable.plist.end(); points++)
+				{
+					logprob += cc->tdist.likelihood(x[*points]);
+				}
+				logprob = logprob + log(cc->nt) * atable.n; //Prior
+				logprobs[taskid] = logprob;
+			}
+	}
+};
+
 void reid(list<Table>& tables)
 {
 	int i = 0;
@@ -127,12 +157,10 @@ void reid(list<Restaurant>& clusters)
 
 Matrix SliceSampler(Matrix& data, ThreadPool& workers, Matrix& superlabels)
 {
-	_MM_SET_FLUSH_ZERO_MODE(_MM_FLUSH_ZERO_ON);
 
-	Vector priormean(d);
+	Vector priormean = mu0;
 	Matrix priorvariance(d, d);
 	priorvariance = Psi*((kep + 1) / ((kep)*eta));
-	priormean = mu0;
 	Stut stt(priormean, priorvariance, eta);
 	loglik0 = stt.likelihood(data);
 	// Point level variables
@@ -147,7 +175,8 @@ Matrix SliceSampler(Matrix& data, ThreadPool& workers, Matrix& superlabels)
 	for (auto& cluster : clusters)
 	{
 		cluster.sampleParams();
-		cluster.sampleTables(tables, 0.005);
+		cluster.ustar = 0.05;
+		cluster.sampleTables(tables);
 	}
 	for (int i = 0; i < n; i++)
 	{
@@ -168,7 +197,7 @@ Matrix SliceSampler(Matrix& data, ThreadPool& workers, Matrix& superlabels)
 			workers.submit(cmsampler);
 		}
 		workers.waitAll();
-		cout << iter << endl;
+
 		reid(tables);
 		NTABLE = tables.size();
 		collector.reset();
@@ -222,40 +251,14 @@ Matrix SliceSampler(Matrix& data, ThreadPool& workers, Matrix& superlabels)
 			atable.cls->addTable(&atable);
 		}
 
-		// Remove if tables are not used 
-		for (auto& cluster : clusters)
-			for (auto tt = cluster.tables.begin(); tt != cluster.tables.end();)
-			{
-				if ((*tt)->n == 0)
-					tt = cluster.tables.erase(tt);
-				else
-					tt++;
-			}
 
-		for (auto tt = tables.begin(); tt != tables.end();)
+		if ((iter % 20) == 0)
 		{
-			if (tt->n == 0)
-				tt = tables.erase(tt);
-			else
-				tt++;
+			cout << iter << endl;
+			for (auto cc = clusters.begin(); cc != clusters.end(); cc++)
+				cout << " " << cc->n;
+			cout << endl;
 		}
-
-
-		// Remove empty clusters
-		for (auto cc = clusters.begin(); cc != clusters.end();)
-		{
-
-			if (cc->n == 0)
-				cc = clusters.erase(cc);
-			else
-				cc++;
-		}
-
-
-
-		for (auto cc = clusters.begin(); cc != clusters.end(); cc++)
-			cout << " " << cc->n;
-		cout << endl;
 
 		// 3rd Loop
 		int kal = 1;
@@ -293,34 +296,43 @@ Matrix SliceSampler(Matrix& data, ThreadPool& workers, Matrix& superlabels)
 				atable.cls->calculateDist();
 
 				k = 0;
-				newdishprob =  log(gamma) + atable.loglik0;
-				for (auto cc = clusters.begin(); cc != clusters.end();cc++)
-				{
-					if (cc->nt == 0)
-						logprobs[k] = -INFINITY;
-					else
-					{
-						logprob = 0;
-						for (auto points = atable.plist.begin(); points != atable.plist.end(); points++)
-						{
-							logprob += cc->tdist.likelihood(x[*points]);
-						}
-						logprob = logprob + log(atable.n); // * log(cc->nt); //Prior
-						logprobs[k] = logprob;
-						
-					}
-					if (iter > BURNIN)
-					{
-						cc->tdist.mu.print();
-						cout << cc->id << ":";
-						cout << logprobs[k] << " ";
-						cout << (cc->tdist.mu - atable.dist.mu).norm() << " ";
-						cout << ((cc->sum/n) - atable.dist.mu).norm() << " ";
-						cout << endl;
-					}
-					k++;
+				newdishprob =  log(gamma) * atable.n + atable.loglik0;
+				Cluster cls(logprobs, atable,cp);
+				for (auto i = 0; i < clusters.size(); i++) {
+					workers.submit(cmsampler);
 				}
-				logprobs[k] = newdishprob;
+				workers.waitAll();
+
+
+				//for (auto cc = clusters.begin(); cc != clusters.end();cc++)
+				//{
+				//	if (cc->nt == 0)
+				//		logprobs[k] = -INFINITY;
+				//	else
+				//	{
+				//		logprob = 0;
+				//		// Parallelize here !!!! 
+				//		for (auto points = atable.plist.begin(); points != atable.plist.end(); points++)
+				//		{
+				//			logprob += cc->tdist.likelihood(x[*points]);
+				//		}
+				//		logprob = logprob + log(cc->nt) * atable.n; //Prior
+				//		logprobs[k] = logprob;
+				//		
+				//	}
+
+				//	if (false)
+				//	{
+				//		cc->tdist.mu.print();
+				//		cout << cc->id << ":";
+				//		cout << logprobs[k] << " ";
+				//		cout << (cc->tdist.mu - atable.dist.mu).norm() << " ";
+				//		cout << ((cc->sum/n) - atable.dist.mu).norm() << " ";
+				//		cout << endl;
+				//	}
+				//	k++;
+				//}
+				logprobs[clusters.size()] = newdishprob;
 				int idx = sampleFromLog(logprobs);
 				//if (iter > BURNIN)
 				//{
@@ -386,10 +398,14 @@ Matrix SliceSampler(Matrix& data, ThreadPool& workers, Matrix& superlabels)
 		// Sample Tables
 		for (auto& cluster : clusters)
 			if (cluster.n > 0)
-				cluster.sampleTables(tables, u.minimum());
+				cluster.sampleTables(tables);
 
 		for (i = 0; i < n; i++)
+		{
 			u[i] = z[i]->beta * urand();
+			if (z[i]->cls->ustar < u[i])
+				z[i]->cls->ustar = u[i];
+		}
 	}
 	return zi;
 }
@@ -420,6 +436,8 @@ int main(int argc,char** argv)
 	nthd = thread::hardware_concurrency();
 	n = x.r; // Number of Points
 	d = x.m;
+	if (d < 16)
+		CBLAS = 0; // Do not use vector library in small dimensions
 	init_buffer(nthd, x.m);
 	cout << " Available number of threads : " << nthd << endl;
 	precomputeGammaLn(2 * n + 100 * d);

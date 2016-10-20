@@ -17,9 +17,10 @@ public:
 	Vector sum;
 	int n;
 	int nt;
+	double ustar;
 	Matrix scatter;
 	vector<Table*> tables;
-	void sampleTables(list<Table>& mainlist, double minu);
+	void sampleTables(list<Table>& mainlist);
 	void addStats(Table* table);
 	void remStats(Table* table);
 	void addTable(Table* table);

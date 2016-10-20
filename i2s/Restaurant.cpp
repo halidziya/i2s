@@ -76,7 +76,7 @@ void Restaurant::remStats(Table* table)
 
 
 
-void Restaurant::sampleTables(list<Table>& mainlist, double ustar)
+void Restaurant::sampleTables(list<Table>& mainlist)
 {
 	// Create Betas
 	Vector valpha = zeros(tables.size() + 1);
@@ -102,6 +102,7 @@ void Restaurant::sampleTables(list<Table>& mainlist, double ustar)
 	{
 		atable->beta = beta[i++];
 	}
+	ustar = 1; //For next iteration
 }
 
 void Restaurant::setDist(Vector & mu, Matrix & sigma)
