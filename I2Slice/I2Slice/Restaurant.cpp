@@ -35,6 +35,7 @@ void Restaurant::sampleParams()
 	}
 	sigma = IWishart(Psi + scatter + otherscatter , n + m + tables.size()).rnd();
 	dist = Normal(Normal((mu0*kappa0 + sum) / (kappa0 + tables.size()), sigma / (kappa0 + tables.size())).rnd(), sigma/kappa1);
+	collapseddist = Stut((mu0*kappa0 + sum) / (kappa0 + tables.size()), (Psi + scatter + otherscatter) * ((kappa0 +1 )/(kappa0*(n + m + tables.size() -d +1 ))),n+m+tables.size()-d+1);
 }
 
 
@@ -50,7 +51,38 @@ void Restaurant::addStats(Table* table)
 	sum += table->dist.mu;
 	n += table->n;
 	nt += 1;
+	Matrix otherscatter = zeros(d, d);
+	if (tables.size() > 0)
+	{
+		Vector& diff = (mu0 - (sum / tables.size()));
+		otherscatter = (diff >> diff)*(kappa0*tables.size() / (kappa0 + tables.size()));
+		for (auto& atable : tables)
+		{
+			otherscatter += (atable->dist.mu - dist.mu) >> (atable->dist.mu - dist.mu);
+		}
+	}
+	collapseddist = Stut((mu0*kappa0 + sum) / (kappa0 + tables.size()), (Psi + scatter + otherscatter) * ((kappa0 + 1) / (kappa0*(n + m + tables.size() - d + 1))), n + m + tables.size() - d + 1);
 }
+
+void Restaurant::remStats(Table* table)
+{
+	scatter -= table->scatter;
+	sum -= table->dist.mu;
+	n -= table->n;
+	nt -= 1;
+	Matrix otherscatter = zeros(d, d);
+	if (tables.size() > 0)
+	{
+		Vector& diff = (mu0 - (sum / tables.size()));
+		otherscatter = (diff >> diff)*(kappa0*tables.size() / (kappa0 + tables.size()));
+		for (auto& atable : tables)
+		{
+			otherscatter += (atable->dist.mu - dist.mu) >> (atable->dist.mu - dist.mu);
+		}
+	}
+	collapseddist = Stut((mu0*kappa0 + sum) / (kappa0 + tables.size()), (Psi + scatter + otherscatter) * ((kappa0 + 1) / (kappa0*(n + m + tables.size() - d + 1))), n + m + tables.size() - d + 1);
+}
+
 
 
 void Restaurant::sampleTables(list<Table>& mainlist,double ustar)
@@ -70,7 +102,7 @@ void Restaurant::sampleTables(list<Table>& mainlist,double ustar)
 	Normal priormean(this->dist.mu, this->sigma / kappa1);
 	for (i = 0; i < newsticks.n; i++)
 	{
-		mainlist.push_back(Table(priormean.rnd(), this->sigma));
+		mainlist.push_back(Table(priormean.rnd(), this->sigma/kappa2));
 		mainlist.back().cls = this;
 		tables.push_back(&mainlist.back());
 	}

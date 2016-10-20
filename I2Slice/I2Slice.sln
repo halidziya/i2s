@@ -15,6 +15,11 @@ Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "I2GMM", "..\..\I2GMM\I2GMM\
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "SpeedTest", "SpeedTest\SpeedTest.vcxproj", "{4A60E180-DB70-49DD-8968-034D1407F200}"
 EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "i2s", "..\i2s\i2s.vcxproj", "{E9D6785C-9351-412A-BA82-188303EF80D4}"
+	ProjectSection(ProjectDependencies) = postProject
+		{110C56D1-C85F-48B4-BB9E-6A5C701412EA} = {110C56D1-C85F-48B4-BB9E-6A5C701412EA}
+	EndProjectSection
+EndProject
 Global
 	GlobalSection(Performance) = preSolution
 		HasPerformanceSessions = true
@@ -90,6 +95,16 @@ Global
 		{4A60E180-DB70-49DD-8968-034D1407F200}.Release|x64.Build.0 = Release|x64
 		{4A60E180-DB70-49DD-8968-034D1407F200}.Release|x86.ActiveCfg = Release|Win32
 		{4A60E180-DB70-49DD-8968-034D1407F200}.Release|x86.Build.0 = Release|Win32
+		{E9D6785C-9351-412A-BA82-188303EF80D4}.Debug|ARM.ActiveCfg = Debug|Win32
+		{E9D6785C-9351-412A-BA82-188303EF80D4}.Debug|x64.ActiveCfg = Debug|x64
+		{E9D6785C-9351-412A-BA82-188303EF80D4}.Debug|x64.Build.0 = Debug|x64
+		{E9D6785C-9351-412A-BA82-188303EF80D4}.Debug|x86.ActiveCfg = Debug|Win32
+		{E9D6785C-9351-412A-BA82-188303EF80D4}.Debug|x86.Build.0 = Debug|Win32
+		{E9D6785C-9351-412A-BA82-188303EF80D4}.Release|ARM.ActiveCfg = Release|Win32
+		{E9D6785C-9351-412A-BA82-188303EF80D4}.Release|x64.ActiveCfg = Release|x64
+		{E9D6785C-9351-412A-BA82-188303EF80D4}.Release|x64.Build.0 = Release|x64
+		{E9D6785C-9351-412A-BA82-188303EF80D4}.Release|x86.ActiveCfg = Release|Win32
+		{E9D6785C-9351-412A-BA82-188303EF80D4}.Release|x86.Build.0 = Release|Win32
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

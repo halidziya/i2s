@@ -17,19 +17,17 @@ for datai=1:length(names)
     
     writeMat(data,X,'double');
     
-    cmd = ['i2slice.exe ',data];
+    cmd = ['dpsl.exe ',data];
     tic;
     system(cmd);
     toc;
 
     slabels=readMat(char(strcat(prefix ,names(datai),'.matrix.superlabels')))+1;
     labels=readMat(char(strcat(prefix ,names(datai),'.matrix.labels')))+1;
-    alabels = align_labels(labels((end-20):end,:)');
+    alabels = align_labels(labels((end-5):end,:)');
     f1s=evaluationTable(Y(Y~=0),alabels(Y~=0))
     
-    for i=1:1
-        animateHierarchicalData(X,slabels,labels)
-    end
+    plotHierarchicalData(X,alabels',alabels')
     
 
 end

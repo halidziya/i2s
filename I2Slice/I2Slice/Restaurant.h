@@ -7,6 +7,7 @@ class Restaurant
 public:
 	Vector beta;
 	Normal dist;
+	Stut collapseddist;
 	Matrix sigma;
 	int id = 0;
 	Vector sum;
@@ -16,6 +17,7 @@ public:
 	vector<Table*> tables;
 	void sampleTables(list<Table>& mainlist,double minu);
 	void addStats(Table* table);
+	void remStats(Table* table);
 	void addTable(Table* table);
 	void setDist(Vector& mu, Matrix& sigma);
 	void reset();

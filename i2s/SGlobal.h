@@ -3,7 +3,6 @@
 
 extern  double kappa0;
 extern  double kappa1;
-extern  double kappa2;
 extern  double alpha;
 extern  int MAXCOMP;
 extern  Normal priormean;
