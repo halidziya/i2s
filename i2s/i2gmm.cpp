@@ -16,7 +16,7 @@ int BURNIN=1400;
 int NSAMPLE = 10;
 int STEP=(MAX_SWEEP-BURNIN)/NSAMPLE; // Default value is 10 sample + 1 post burnin
 char* result_dir = "./";
-
+int NINITIAL = 2;
 // Variables
 double kep,eta;
 Vector u;
@@ -38,13 +38,14 @@ public:
 			SETUP_ID()
 			int taskid = this->taskid++; // Oth thread is the main process
 			auto range = trange(n, nchunks, taskid); // 2xNumber of Threads chunks		
+
 			for (auto i = range[0]; i< range[1]; i++) // Operates on its own chunk
 			{
 				Restaurant& cl = *c[i];
-				int NTABLE = tables.size();
+				int NTABLE = cl.tables.size();
 				Vector likelihoods(NTABLE);
 				int j = 0;
-				for (auto& t : tables)
+				for (auto& t : cl.tables)
 				{
 					if ( (t->beta >= u[i]))
 					{
@@ -56,7 +57,7 @@ public:
 					}
 					j++;
 				}
-				z[i] = tables[sampleFromLog(likelihoods)]; //**
+				z[i] = cl.tables[sampleFromLog(likelihoods)]; //**
 			}
 		}
 
@@ -135,7 +136,7 @@ public:
 				{
 					logprob += cc->tdist.likelihood(x[*points]);
 				}
-				logprob = logprob + log(cc->nt) * atable.n; //Prior
+				logprob = logprob + log(cc->n);//+log(atable.n); //Prior
 				logprobs[taskid] = logprob;
 			}
 	}
@@ -165,22 +166,31 @@ Matrix SliceSampler(Matrix& data, ThreadPool& workers, Matrix& superlabels)
 	loglik0 = stt.likelihood(data);
 	// Point level variables
 	x = data;
-	int NTABLE = 1;
+	int NTABLE = NINITIAL;
 	int k = 0, i = 0, j = 0;
 	u = ones(n);
 	z = vector<Table*>(n); // Component labels
 	c = vector<Restaurant*>(n);
-	clusters = list<Restaurant>(1);
-	Stut priorcollapsed = Stut(mu0, Psi * ((kappa0 + 1) / (kappa0*(m - d + 1))), m - d + 1);
+
+	clusters = list<Restaurant>(NINITIAL);
 	for (auto& cluster : clusters)
 	{
 		cluster.sampleParams();
 		cluster.ustar = 0.05;
 		cluster.sampleTables(tables);
 	}
+
+	vector<Restaurant*> cp = vector<Restaurant*>(clusters.size());
+	i = 0;
+	for (auto& cluster : clusters)
+	{
+		cp[i] = &cluster;
+		i++;
+	}
+
 	for (int i = 0; i < n; i++)
 	{
-		c[i] = &*clusters.begin();
+		c[i] = cp[rand()%NINITIAL];
 		j = rand() % c[i]->tables.size();
 		u[i] = c[i]->beta[j]*urand();
 		z[i] = c[i]->tables[j];
@@ -233,7 +243,7 @@ Matrix SliceSampler(Matrix& data, ThreadPool& workers, Matrix& superlabels)
 		reid(clusters);
 		// Sample tables
 
-		vector<Restaurant*> cp = vector<Restaurant*>(clusters.size());
+		cp = vector<Restaurant*>(clusters.size());
 		vector<int> cidx = vector<int>(tables.size());
 		i = 0;
 		for (auto& cluster : clusters)
@@ -257,6 +267,7 @@ Matrix SliceSampler(Matrix& data, ThreadPool& workers, Matrix& superlabels)
 			cout << iter << endl;
 			for (auto cc = clusters.begin(); cc != clusters.end(); cc++)
 				cout << " " << cc->n;
+			cout << endl << "Tables :" << tables.size() << endl;
 			cout << endl;
 		}
 
@@ -296,10 +307,10 @@ Matrix SliceSampler(Matrix& data, ThreadPool& workers, Matrix& superlabels)
 				atable.cls->calculateDist();
 
 				k = 0;
-				newdishprob =  log(gamma) * atable.n + atable.loglik0;
+				newdishprob =  log(gamma) + atable.loglik0;
 				Cluster cls(logprobs, atable,cp);
 				for (auto i = 0; i < clusters.size(); i++) {
-					workers.submit(cmsampler);
+					workers.submit(cls);
 				}
 				workers.waitAll();
 
@@ -333,15 +344,18 @@ Matrix SliceSampler(Matrix& data, ThreadPool& workers, Matrix& superlabels)
 				//	k++;
 				//}
 				logprobs[clusters.size()] = newdishprob;
-				int idx = sampleFromLog(logprobs);
 				//if (iter > BURNIN)
 				//{
-				//	if (idx < clusters.size())
-				//	cp[idx]->tdist.mu.print();
+				//	logprobs.print();
 				//	atable.dist.mu.print();
 				//	cout << newdishprob;
-				//	cout << endl << "Selected " << idx << endl;
+
 				//}
+
+				int idx = sampleFromLog(logprobs);
+				//if (iter > BURNIN)
+				//	cout << endl << "Selected " << idx << endl;
+	
 				if (idx == clusters.size())
 				{
 					clusters.push_back(Restaurant());
@@ -422,6 +436,9 @@ int main(int argc,char** argv)
 	generator.seed(time(NULL));
 	srand(time(NULL));
 	system("dir");
+
+	CBLAS = 0; // Do not use vector library in small dimensions
+
 	if (argc > 1)
 	{
 		x.readBin(argv[1]);
@@ -436,8 +453,7 @@ int main(int argc,char** argv)
 	nthd = thread::hardware_concurrency();
 	n = x.r; // Number of Points
 	d = x.m;
-	if (d < 16)
-		CBLAS = 0; // Do not use vector library in small dimensions
+
 	init_buffer(nthd, x.m);
 	cout << " Available number of threads : " << nthd << endl;
 	precomputeGammaLn(2 * n + 100 * d);
@@ -500,6 +516,10 @@ int main(int argc,char** argv)
 		STEP = (MAX_SWEEP - BURNIN) / NSAMPLE;
 	}
 
+	if (argc > 8)
+		CBLAS = atoi(argv[8]);
+
+
 	printf("Reading...\n");
 	kep = kappa0*kappa1 / (kappa0 + kappa1);
 	eta = m - d + 2;
@@ -508,8 +528,6 @@ int main(int argc,char** argv)
 
 	ThreadPool tpool(nthd);
 	Matrix superlabels((MAX_SWEEP - BURNIN) / STEP + 1, n);
-	priorcov = IWishart(Psi, m);
-	priormean = Normal(mu0, priorcov.rnd() / kappa0);
 	auto labels = SliceSampler(x, tpool, superlabels); // data,m,kappa,gamma,mean,cov 
 	string filename = argv[1];
 	labels.writeBin(filename.append(".labels").c_str());
