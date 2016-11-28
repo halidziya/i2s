@@ -13,6 +13,7 @@ Restaurant::Restaurant()
 void Restaurant::reset()
 {
 	tables.resize(0);
+	collapsedtables.resize(0);
 	resetStats();
 }
 
@@ -31,23 +32,25 @@ void Restaurant::sampleParams()
 	if (tables.size() > 0)
 	{
 		Vector& diff = (mu0 - (sum / tables.size()));
-		otherscatter = (diff >> diff)*(kappa0*tables.size() / (kappa0 + tables.size()));
+		otherscatter = (diff >> diff)*(kappa*tables.size() / (kappa + tables.size()));
 		for (auto& atable : tables)
 		{
 			otherscatter += (atable->dist.mu - dist.mu) >> (atable->dist.mu - dist.mu);
 		}
 	}
 	sigma = IWishart(Psi + scatter + otherscatter, n + m + tables.size()).rnd();
-	dist = Normal(Normal((mu0*kappa0 + sum) / (kappa0 + tables.size()), sigma / (kappa0 + tables.size())).rnd(), sigma / kappa1);
+	dist = Normal(Normal((mu0*kappa + sum) / (kappa + tables.size()), sigma / (kappa + tables.size())).rnd(), sigma / kappa1);
 }
 
 
 void Restaurant::calculateDist()
 {
-	double kap = harmean(nt + kappa0, kappa1);
+	double kap = harmean(nt + kappa, kappa1);
 	tdist.eta = m + 2 + this->n - d - nt; //dpar0
-	tdist.mu = (sum + mu0*kappa0) / (nt + kappa0); // dpar1
-	tdist.cholsigma = ((Psi + scatter)*((kap + 1) / (kap*tdist.eta))).chol(); // dpar2// mu_ti is deleted because of it is same with dpar0
+	Vector& diff = (mu0 - (sum / tables.size()));
+	Matrix otherscatter = (diff >> diff)*(kappa*tables.size() / (kappa + tables.size()));
+	tdist.mu = (sum + mu0*kappa) / (nt + kappa); // dpar1
+	tdist.cholsigma = ((Psi + scatter + otherscatter)*((kap + 1) / (kap*tdist.eta))).chol(); // dpar2// mu_ti is deleted because of it is same with dpar0
 	tdist.calculateNormalizer();
 }
 
@@ -55,6 +58,11 @@ void  Restaurant::addTable(Table* table)
 {
 	tables.push_back(table);
 	addStats(table);
+}
+
+void  Restaurant::addCollapsedTable(Table* table)
+{
+	collapsedtables.push_back(table);
 }
 
 void Restaurant::addStats(Table* table)
@@ -87,16 +95,16 @@ void Restaurant::sampleTables(list<Table>& mainlist)
 	Dirichlet dr(valpha);
 	beta = dr.rnd();
 	//New Sticks
-	Vector	newsticks = stickBreaker(ustar, beta[beta.n - 1], gamma);
-	beta.resize(beta.n - 1);
-	beta = beta.append(newsticks);
-	Normal priormean(this->dist.mu, this->sigma / kappa1);
-	for (i = 0; i < newsticks.n; i++)
-	{
-		mainlist.push_back(Table(priormean.rnd(), this->sigma));
-		mainlist.back().cls = this;
-		tables.push_back(&mainlist.back());
-	}
+	//Vector	newsticks = stickBreaker(ustar, beta[beta.n - 1], gamma);
+	//beta.resize(beta.n - 1);
+	//beta = beta.append(newsticks);
+	//Normal priormean(this->dist.mu, this->sigma / kappa1);
+	//for (i = 0; i < newsticks.n; i++)
+	//{
+	//	mainlist.push_back(Table(priormean.rnd(), this->sigma));
+	//	mainlist.back().cls = this;
+	//	tables.push_back(&mainlist.back());
+	//}
 	i = 0;
 	for (auto& atable : tables)
 	{

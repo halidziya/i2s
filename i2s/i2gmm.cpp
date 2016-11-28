@@ -13,10 +13,10 @@ using namespace std;
 
 int MAX_SWEEP=1500;
 int BURNIN=1400;
-int NSAMPLE = 10;
+int NSAMPLE = 50;
 int STEP=(MAX_SWEEP-BURNIN)/NSAMPLE; // Default value is 10 sample + 1 post burnin
 char* result_dir = "./";
-int NINITIAL = 2;
+int NINITIAL = 1;
 // Variables
 double kep,eta;
 Vector u;
@@ -31,8 +31,10 @@ class CompTask : public Task
 {
 public:
 	atomic<int> taskid;
+	atomic<int> nnew;
 	int nchunks;
 	vector<Table* > tables;
+
 	void run(int id) {
 		{
 			SETUP_ID()
@@ -43,21 +45,24 @@ public:
 			{
 				Restaurant& cl = *c[i];
 				int NTABLE = cl.tables.size();
-				Vector likelihoods(NTABLE);
+				Vector likelihoods(NTABLE+1);
 				int j = 0;
 				for (auto& t : cl.tables)
 				{
-					if ( (t->beta >= u[i]))
-					{
-						likelihoods[j] = t->dist.likelihood(x(i)); //**
-					}
-					else
-					{
-						likelihoods[j] = -INFINITY;
-					}
+					likelihoods[j] = t->dist.likelihood(x(i)) +  log(t->beta); //**
 					j++;
 				}
-				z[i] = cl.tables[sampleFromLog(likelihoods)]; //**
+				likelihoods[NTABLE] = loglik0[i] + log(cl.beta[NTABLE]);
+				int idx = sampleFromLog(likelihoods);
+				if (idx < NTABLE)
+				{
+					z[i] = cl.tables[idx]; //**
+				}
+				else
+				{
+					z[i] = NULL;
+					nnew++;
+				}
 			}
 		}
 
@@ -67,6 +72,7 @@ public:
 	{
 		this->nchunks = nchunks;
 		taskid = 0;
+		nnew = 0;
 		tables.resize(0);
 		for (auto& t : ::tables) // Global tables
 		{
@@ -176,8 +182,13 @@ Matrix SliceSampler(Matrix& data, ThreadPool& workers, Matrix& superlabels)
 	for (auto& cluster : clusters)
 	{
 		cluster.sampleParams();
-		cluster.ustar = 0.05;
-		cluster.sampleTables(tables);
+		Normal priormean(cluster.dist.mu, cluster.sigma / kappa1);
+		tables.push_back(Table(priormean.rnd(), cluster.sigma));
+		tables.back().cls = &cluster;
+		cluster.tables.push_back(&tables.back());
+		cluster.beta = v({ 0.99,0.01 });
+		tables.back().beta = 0.99;
+		//cluster.sampleTables(tables);
 	}
 
 	vector<Restaurant*> cp = vector<Restaurant*>(clusters.size());
@@ -207,6 +218,45 @@ Matrix SliceSampler(Matrix& data, ThreadPool& workers, Matrix& superlabels)
 			workers.submit(cmsampler);
 		}
 		workers.waitAll();
+
+
+
+		Vector likes;
+		likes.resize(100);
+		for (int i = 0; i < n; i++)
+		{
+			if (z[i] == NULL)
+			{
+				likes.resize(c[i]->collapsedtables.size() + 1);
+				j = 0;
+				for (auto& atable : c[i]->collapsedtables)
+				{
+					Normal dist = Normal((atable->sum + c[i]->dist.mu*kappa1) / (kappa1 + atable->n) , (Psi + c[i]->scatter + atable->scatter)/(atable->n + c[i]->n + m )) ;
+					likes[j] = dist.likelihood(x[i])  + log(atable->n);
+					j++;
+				}
+				likes[j] = loglik0[i] + alpha;
+				int idx = sampleFromLog(likes);
+				if (idx == c[i]->collapsedtables.size())
+				{
+					tables.push_back(Table());
+					c[i]->addCollapsedTable(&tables.back());
+					tables.back().cls = c[i];
+				}
+				z[i] = c[i]->collapsedtables[idx];
+				z[i]->n++;
+				z[i]->sum += x[i];
+				z[i]->scatter += ((x[i]-c[i]->dist.mu) >> (x[i] - c[i]->dist.mu));
+			}
+		}
+		//cout << cmsampler.nnew << endl;
+
+		for (auto& cl : clusters)
+		{
+			cl.tables.insert(cl.collapsedtables.begin(), cl.collapsedtables.end(), cl.collapsedtables.end());
+			cl.collapsedtables.resize(0);
+		}
+
 
 		reid(tables);
 		NTABLE = tables.size();
@@ -446,7 +496,7 @@ int main(int argc,char** argv)
 	}
 	else
 	{
-		cout << "Usage: " << "i2slice.exe datafile.matrix [hypermean.matrix] [hyperscatter.matrix] [params.matrix (d,m,kappa0,kappa1,gamma)]  [#ITERATION] [#BURNIN] [#SAMPLE]  [initiallabels.matrix]: In fixed order";
+		cout << "Usage: " << "i2slice.exe datafile.matrix [hypermean.matrix] [hyperscatter.matrix] [params.matrix (d,m,kappa,kappa1,gamma)]  [#ITERATION] [#BURNIN] [#SAMPLE]  [initiallabels.matrix]: In fixed order";
 		return -1;
 	}
 	cout << "NPOINTS :" << x.r << " NDIMS:" << x.m << endl;
@@ -481,16 +531,16 @@ int main(int argc,char** argv)
 		hyperparams.readBin(argv[4]);
 		hyperparams.print();
 		m = hyperparams.data[1];
-		kappa0 = hyperparams.data[2];
+		kappa = hyperparams.data[2];
 		kappa1 = hyperparams.data[3];
 		alpha = hyperparams.data[4];
 		gamma = hyperparams.data[5];
-		cout << m << " " << kappa0 << " " << kappa1 << " " << alpha << " " << gamma << endl;
+		cout << m << " " << kappa << " " << kappa1 << " " << alpha << " " << gamma << endl;
 	}
 	else
 	{
 		m = x.m + 3;
-		kappa0 = 1;
+		kappa = 1;
 		kappa1 = 1;
 		gamma = 1;
 		alpha = 1;
@@ -499,7 +549,7 @@ int main(int argc,char** argv)
 	if (argc > 3)
 		Psi.readBin(argv[3]);
 	else
-		Psi = (eye(d)).copy();
+		Psi = (eye(d)*(m-d-1)).copy();
 
 
 
@@ -521,7 +571,7 @@ int main(int argc,char** argv)
 
 
 	printf("Reading...\n");
-	kep = kappa0*kappa1 / (kappa0 + kappa1);
+	kep = kappa*kappa1 / (kappa + kappa1);
 	eta = m - d + 2;
 	precomputeGammaLn(2 * (n + d) + 1);  // With 0.5 increments
 	init_buffer(thread::hardware_concurrency(), d);

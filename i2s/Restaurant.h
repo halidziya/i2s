@@ -20,10 +20,12 @@ public:
 	double ustar;
 	Matrix scatter;
 	vector<Table*> tables;
+	vector<Table*> collapsedtables;
 	void sampleTables(list<Table>& mainlist);
 	void addStats(Table* table);
 	void remStats(Table* table);
 	void addTable(Table* table);
+	void addCollapsedTable(Table* table);
 	void setDist(Vector& mu, Matrix& sigma);
 	void reset();
 	void resetStats();

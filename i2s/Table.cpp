@@ -16,7 +16,6 @@ Table::Table(Vector& mu, Matrix& sigma)
 {
 	dist = Normal(mu, sigma);
 	reset();
-
 }
 
 void Table::reset()
