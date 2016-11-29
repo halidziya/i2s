@@ -27,5 +27,5 @@ set(SOURCE_FILES
 
 INCLUDE_DIRECTORIES(../FastMat/)
 LINK_DIRECTORIES(../FastMat)
-add_executable(i2s ${SOURCE_FILES})
-TARGET_LINK_LIBRARIES(i2s libFastMat)
+add_executable(i2slice ${SOURCE_FILES})
+TARGET_LINK_LIBRARIES(i2slice libFastMat)
