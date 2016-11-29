@@ -212,6 +212,7 @@ Matrix SliceSampler(Matrix& data, ThreadPool& workers, Matrix& superlabels)
 	Collector  collector(NTABLE);
 
 	for (int iter = 0; iter <= MAX_SWEEP; iter++) {
+
 		reid(clusters);
 		cmsampler.reset(2 * nthd);
 		for (auto i = 0; i < cmsampler.nchunks; i++) {
@@ -219,7 +220,7 @@ Matrix SliceSampler(Matrix& data, ThreadPool& workers, Matrix& superlabels)
 		}
 		workers.waitAll();
 
-
+		
 
 		Vector likes;
 		likes.resize(100);
@@ -235,8 +236,11 @@ Matrix SliceSampler(Matrix& data, ThreadPool& workers, Matrix& superlabels)
 					likes[j] = dist.likelihood(x[i])  + log(atable->n);
 					j++;
 				}
+				//mu0.print();
 				likes[j] = loglik0[i] + alpha;
 				int idx = sampleFromLog(likes);
+				
+
 				if (idx == c[i]->collapsedtables.size())
 				{
 					tables.push_back(Table());
@@ -470,6 +474,12 @@ Matrix SliceSampler(Matrix& data, ThreadPool& workers, Matrix& superlabels)
 			if (z[i]->cls->ustar < u[i])
 				z[i]->cls->ustar = u[i];
 		}
+
+		//Psi = eye(d);
+		//for (auto& cluster : clusters)
+		//	Psi += cluster.scatter;
+		//Psi /= (n/(2*(m-d-1)));
+
 	}
 	return zi;
 }
@@ -549,7 +559,7 @@ int main(int argc,char** argv)
 	if (argc > 3)
 		Psi.readBin(argv[3]);
 	else
-		Psi = (eye(d)*(m-d-1)).copy();
+		Psi = (eye(d)*2*(m-d-1)).copy();
 
 
 
