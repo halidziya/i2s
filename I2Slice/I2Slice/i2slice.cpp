@@ -276,7 +276,7 @@ Matrix SliceSampler(Matrix& x, ThreadPool& workers,Matrix& superlabels)
 		int i = 0;
 		for (auto ti = clusters.begin(); i < clusters.size(); i++, ti++)
 			valpha[i] = ti->n; // ti->tables.size();
-		valpha[i] = gamma;
+		valpha[i] = gam;
 		Dirichlet dr(valpha);
 		beta = dr.rnd();
 
@@ -349,7 +349,7 @@ int imain(int argc,char** argv)
 	}
 	else
 	{
-		cout << "Usage: " << "i2slice.exe datafile.matrix [hypermean.matrix] [hyperscatter.matrix] [params.matrix (d,m,kappa0,kappa1,gamma)]  [#ITERATION] [#BURNIN] [#SAMPLE]  [initiallabels.matrix]: In fixed order";
+		cout << "Usage: " << "i2slice.exe datafile.matrix [hypermean.matrix] [hyperscatter.matrix] [params.matrix (d,m,kappa0,kappa1,gam)]  [#ITERATION] [#BURNIN] [#SAMPLE]  [initiallabels.matrix]: In fixed order";
 		return -1;
 	}
 	cout << "NPOINTS :" << x.r << " NDIMS:" << x.m << endl;
@@ -358,13 +358,13 @@ int imain(int argc,char** argv)
 	d = x.m;
 	init_buffer(nthd, x.m);
 	cout << " Available number of threads : " << nthd << endl;
-	precomputeGammaLn(2 * n + 100 * d);
+	precomputegamLn(2 * n + 100 * d);
 
 
 	// Hyper-parameters with default values
 	if (x.data == NULL)
 	{
-		cout << "Usage: " << "dpsl.exe datafile.matrix [hypermean.matrix] [hyperscatter.matrix] [params.matrix (d,m,kappa,gamma)]  [#ITERATION] [#BURNIN] [#SAMPLE]  [initiallabels.matrix]: In fixed order";
+		cout << "Usage: " << "dpsl.exe datafile.matrix [hypermean.matrix] [hyperscatter.matrix] [params.matrix (d,m,kappa,gam)]  [#ITERATION] [#BURNIN] [#SAMPLE]  [initiallabels.matrix]: In fixed order";
 		return -1;
 	}
 
@@ -385,15 +385,15 @@ int imain(int argc,char** argv)
 		m = hyperparams.data[1];
 		kappa0 = hyperparams.data[2];
 		kappa1 = hyperparams.data[2];
-		gamma = hyperparams.data[3];
-		cout << m << " " << kappa0 << " "  << kappa1 << " " << gamma << " " << alpha << endl;
+		gam = hyperparams.data[3];
+		cout << m << " " << kappa0 << " "  << kappa1 << " " << gam << " " << alpha << endl;
 	}
 	else
 	{
 		m = x.m + 2;
 		kappa0 = .05;
 		kappa1 = .5;
-		gamma = 1;
+		gam = 1;
 		alpha = 1;
 	}
 
@@ -422,7 +422,7 @@ int imain(int argc,char** argv)
 	Matrix superlabels((MAX_SWEEP - BURNIN) / STEP + 1, n);
 	priorcov  = IWishart(Psi,m);
 	priormean = Normal(mu0, priorcov.rnd()/kappa0);
-	auto labels = SliceSampler(x,tpool,superlabels); // data,m,kappa,gamma,mean,cov 
+	auto labels = SliceSampler(x,tpool,superlabels); // data,m,kappa,gam,mean,cov 
 	string filename = argv[1];
 	labels.writeBin(filename.append(".labels").c_str());
 	filename = argv[1];

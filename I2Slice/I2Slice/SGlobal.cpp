@@ -4,7 +4,7 @@ double kappa0 = 0;
 double kappa1 = 0;
 double kappa2 = 0;
 int MAXCOMP = 20;
-extern double alpha = 1;
+extern double alpha;
 
  Normal priormean;
  IWishart priorcov;

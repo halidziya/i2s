@@ -40,7 +40,7 @@ Table::Table(Restaurant* cls, int n, Vector& sum, Matrix& scatter)
 
 void Table::sampleMean()
 {
-	Vector& mu = Normal((cls->dist.mu*kappa1 + sum) / (n + kappa1), cls->sigma / (n + kappa1)).rnd();
+	Vector mu = Normal((cls->dist.mu*kappa1 + sum) / (n + kappa1), cls->sigma / (n + kappa1)).rnd();
 	dist = Normal(mu, cls->sigma);
 }
 

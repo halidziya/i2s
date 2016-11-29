@@ -361,7 +361,7 @@ Matrix SliceSampler(Matrix& data, ThreadPool& workers, Matrix& superlabels)
 				atable.cls->calculateDist();
 
 				k = 0;
-				newdishprob =  log(gamma) + atable.loglik0;
+				newdishprob =  log(gam) + atable.loglik0;
 				Cluster cls(logprobs, atable,cp);
 				for (auto i = 0; i < clusters.size(); i++) {
 					workers.submit(cls);
@@ -506,7 +506,7 @@ int main(int argc,char** argv)
 	}
 	else
 	{
-		cout << "Usage: " << "i2slice.exe datafile.matrix [hypermean.matrix] [hyperscatter.matrix] [params.matrix (d,m,kappa,kappa1,gamma)]  [#ITERATION] [#BURNIN] [#SAMPLE]  [initiallabels.matrix]: In fixed order";
+		cout << "Usage: " << "i2slice.exe datafile.matrix [hypermean.matrix] [hyperscatter.matrix] [params.matrix (d,m,kappa,kappa1,gam)]  [#ITERATION] [#BURNIN] [#SAMPLE]  [initiallabels.matrix]: In fixed order";
 		return -1;
 	}
 	cout << "NPOINTS :" << x.r << " NDIMS:" << x.m << endl;
@@ -516,13 +516,13 @@ int main(int argc,char** argv)
 
 	init_buffer(nthd, x.m);
 	cout << " Available number of threads : " << nthd << endl;
-	precomputeGammaLn(2 * n + 100 * d);
+	precomputegamLn(2 * n + 100 * d);
 
 
 	// Hyper-parameters with default values
 	if (x.data == NULL)
 	{
-		cout << "Usage: " << "i2slice.exe datafile.matrix [hypermean.matrix] [hyperscatter.matrix] [params.matrix (d,m,kappa,gamma)]  [#ITERATION] [#BURNIN] [#SAMPLE]  [initiallabels.matrix]: In fixed order";
+		cout << "Usage: " << "i2slice.exe datafile.matrix [hypermean.matrix] [hyperscatter.matrix] [params.matrix (d,m,kappa,gam)]  [#ITERATION] [#BURNIN] [#SAMPLE]  [initiallabels.matrix]: In fixed order";
 		return -1;
 	}
 
@@ -544,15 +544,15 @@ int main(int argc,char** argv)
 		kappa = hyperparams.data[2];
 		kappa1 = hyperparams.data[3];
 		alpha = hyperparams.data[4];
-		gamma = hyperparams.data[5];
-		cout << m << " " << kappa << " " << kappa1 << " " << alpha << " " << gamma << endl;
+		gam = hyperparams.data[5];
+		cout << m << " " << kappa << " " << kappa1 << " " << alpha << " " << gam << endl;
 	}
 	else
 	{
 		m = x.m + 3;
 		kappa = 1;
 		kappa1 = 1;
-		gamma = 1;
+		gam = 1;
 		alpha = 1;
 	}
 
@@ -583,12 +583,12 @@ int main(int argc,char** argv)
 	printf("Reading...\n");
 	kep = kappa*kappa1 / (kappa + kappa1);
 	eta = m - d + 2;
-	precomputeGammaLn(2 * (n + d) + 1);  // With 0.5 increments
+	precomputegamLn(2 * (n + d) + 1);  // With 0.5 increments
 	init_buffer(thread::hardware_concurrency(), d);
 
 	ThreadPool tpool(nthd);
 	Matrix superlabels((MAX_SWEEP - BURNIN) / STEP + 1, n);
-	auto labels = SliceSampler(x, tpool, superlabels); // data,m,kappa,gamma,mean,cov 
+	auto labels = SliceSampler(x, tpool, superlabels); // data,m,kappa,gam,mean,cov 
 	string filename = argv[1];
 	labels.writeBin(filename.append(".labels").c_str());
 	filename = argv[1];

@@ -20,6 +20,8 @@ Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "i2s", "..\i2s\i2s.vcxproj",
 		{110C56D1-C85F-48B4-BB9E-6A5C701412EA} = {110C56D1-C85F-48B4-BB9E-6A5C701412EA}
 	EndProjectSection
 EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "IGMM", "..\..\IGMMCollapsed\IGMM\IGMM.vcxproj", "{A2C6D2CB-81C5-4246-A3A9-AD455BFA58B4}"
+EndProject
 Global
 	GlobalSection(Performance) = preSolution
 		HasPerformanceSessions = true
@@ -105,6 +107,16 @@ Global
 		{E9D6785C-9351-412A-BA82-188303EF80D4}.Release|x64.Build.0 = Release|x64
 		{E9D6785C-9351-412A-BA82-188303EF80D4}.Release|x86.ActiveCfg = Release|Win32
 		{E9D6785C-9351-412A-BA82-188303EF80D4}.Release|x86.Build.0 = Release|Win32
+		{A2C6D2CB-81C5-4246-A3A9-AD455BFA58B4}.Debug|ARM.ActiveCfg = Debug|Win32
+		{A2C6D2CB-81C5-4246-A3A9-AD455BFA58B4}.Debug|x64.ActiveCfg = Debug|x64
+		{A2C6D2CB-81C5-4246-A3A9-AD455BFA58B4}.Debug|x64.Build.0 = Debug|x64
+		{A2C6D2CB-81C5-4246-A3A9-AD455BFA58B4}.Debug|x86.ActiveCfg = Debug|Win32
+		{A2C6D2CB-81C5-4246-A3A9-AD455BFA58B4}.Debug|x86.Build.0 = Debug|Win32
+		{A2C6D2CB-81C5-4246-A3A9-AD455BFA58B4}.Release|ARM.ActiveCfg = Release|Win32
+		{A2C6D2CB-81C5-4246-A3A9-AD455BFA58B4}.Release|x64.ActiveCfg = Release|x64
+		{A2C6D2CB-81C5-4246-A3A9-AD455BFA58B4}.Release|x64.Build.0 = Release|x64
+		{A2C6D2CB-81C5-4246-A3A9-AD455BFA58B4}.Release|x86.ActiveCfg = Release|Win32
+		{A2C6D2CB-81C5-4246-A3A9-AD455BFA58B4}.Release|x86.Build.0 = Release|Win32
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

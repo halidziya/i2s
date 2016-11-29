@@ -121,7 +121,6 @@ void reid(list<Restaurant>& clusters)
 
 Matrix SliceSampler(Matrix& data, ThreadPool& workers, Matrix& superlabels)
 {
-	_MM_SET_FLUSH_ZERO_MODE(_MM_FLUSH_ZERO_ON);
 	// Point level variables
 	x = data;
 	int NTABLE = NINITIAL;
@@ -242,7 +241,7 @@ Matrix SliceSampler(Matrix& data, ThreadPool& workers, Matrix& superlabels)
 
 
 			//likelihood[j] = -0.5 * (((atable.cls->sigma).inverse()*asigmaj).diag().sum() + dist - d + atable.dist.cholsigma.sumlogdiag() - asigmaj.chol().sumlogdiag());
-			//likelihood[j] +=  log(gamma);// +Wishart(Psi, m).likelihood(atable.scatter + Psi);
+			//likelihood[j] +=  log(gam);// +Wishart(Psi, m).likelihood(atable.scatter + Psi);
 
 			cidx[i] = sampleFromLog(likelihood);
 			//if (cidx[i] >= cp.size()) {
@@ -283,7 +282,7 @@ Matrix SliceSampler(Matrix& data, ThreadPool& workers, Matrix& superlabels)
 		int i = 0;
 		for (auto ti = clusters.begin(); i < clusters.size(); i++, ti++)
 			valpha[i] = ti->n; // ti->tables.size();
-		valpha[i] = gamma;
+		valpha[i] = gam;
 		Dirichlet dr(valpha);
 		beta = dr.rnd();
 
@@ -350,7 +349,7 @@ int main(int argc, char** argv)
 	}
 	else
 	{
-		cout << "Usage: " << "i2slice.exe datafile.matrix [hypermean.matrix] [hyperscatter.matrix] [params.matrix (d,m,kappa0,kappa1,gamma)]  [#ITERATION] [#BURNIN] [#SAMPLE]  [initiallabels.matrix]: In fixed order";
+		cout << "Usage: " << "i2slice.exe datafile.matrix [hypermean.matrix] [hyperscatter.matrix] [params.matrix (d,m,kappa0,kappa1,gam)]  [#ITERATION] [#BURNIN] [#SAMPLE]  [initiallabels.matrix]: In fixed order";
 		return -1;
 	}
 	cout << "NPOINTS :" << x.r << " NDIMS:" << x.m << endl;
@@ -359,13 +358,13 @@ int main(int argc, char** argv)
 	d = x.m;
 	init_buffer(nthd, x.m);
 	cout << " Available number of threads : " << nthd << endl;
-	precomputeGammaLn(2 * n + 100 * d);
+	precomputegamLn(2 * n + 100 * d);
 
 
 	// Hyper-parameters with default values
 	if (x.data == NULL)
 	{
-		cout << "Usage: " << "i2slice.exe datafile.matrix [hypermean.matrix] [hyperscatter.matrix] [params.matrix (d,m,kappa,gamma)]  [#ITERATION] [#BURNIN] [#SAMPLE]  [initiallabels.matrix]: In fixed order";
+		cout << "Usage: " << "i2slice.exe datafile.matrix [hypermean.matrix] [hyperscatter.matrix] [params.matrix (d,m,kappa,gam)]  [#ITERATION] [#BURNIN] [#SAMPLE]  [initiallabels.matrix]: In fixed order";
 		return -1;
 	}
 
@@ -386,8 +385,8 @@ int main(int argc, char** argv)
 		m = hyperparams.data[1];
 		kappa0 = hyperparams.data[2];
 		kappa1 = hyperparams.data[2];
-		gamma = hyperparams.data[3];
-		cout << m << " " << kappa0 << " " << kappa1 << " " << gamma << " " << alpha << endl;
+		gam = hyperparams.data[3];
+		cout << m << " " << kappa0 << " " << kappa1 << " " << gam << " " << alpha << endl;
 	}
 	else
 	{
@@ -395,7 +394,7 @@ int main(int argc, char** argv)
 		kappa0 = 1;
 		kappa1 = 1;
 		kappa2 = 1;
-		gamma = 1;
+		gam = 1;
 		alpha = 1;
 	}
 
@@ -424,7 +423,7 @@ int main(int argc, char** argv)
 	Matrix superlabels((MAX_SWEEP - BURNIN) / STEP + 1, n);
 	priorcov = IWishart(Psi, m);
 	priormean = Normal(mu0, priorcov.rnd() / kappa0);
-	auto labels = SliceSampler(x, tpool, superlabels); // data,m,kappa,gamma,mean,cov 
+	auto labels = SliceSampler(x, tpool, superlabels); // data,m,kappa,gam,mean,cov 
 	string filename = argv[1];
 	labels.writeBin(filename.append(".labels").c_str());
 	filename = argv[1];

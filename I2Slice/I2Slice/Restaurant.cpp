@@ -96,7 +96,7 @@ void Restaurant::sampleTables(list<Table>& mainlist,double ustar)
 	Dirichlet dr(valpha);
 	beta = dr.rnd();
 	//New Sticks
-	Vector	newsticks = stickBreaker(ustar, beta[beta.n - 1], gamma);
+	Vector	newsticks = stickBreaker(ustar, beta[beta.n - 1], gam);
 	beta.resize(beta.n - 1);
 	beta = beta.append(newsticks);
 	Normal priormean(this->dist.mu, this->sigma / kappa1);

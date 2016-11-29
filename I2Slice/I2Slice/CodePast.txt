@@ -76,7 +76,7 @@ vector<int> relabel(Vector& labels,Vector& superlabels)
 
 	/*
 	// Create Betas
-	Vector alpha = collector.count.append(gamma);
+	Vector alpha = collector.count.append(gam);
 	Dirichlet dr(alpha);
 	beta = dr.rnd();
 
@@ -85,7 +85,7 @@ vector<int> relabel(Vector& labels,Vector& superlabels)
 	u *= beta[z];
 	//New Sticks
 	double ustar = u.minimum();
-	Vector newsticks = stickBreaker(ustar, beta[beta.n - 1], gamma);
+	Vector newsticks = stickBreaker(ustar, beta[beta.n - 1], gam);
 
 	// Distribute B by assigning to its table
 	// Add new tables, zero scatter
