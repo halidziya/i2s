@@ -27,5 +27,7 @@ set(SOURCE_FILES
 
 INCLUDE_DIRECTORIES(../FastMat/)
 LINK_DIRECTORIES(../FastMat)
+find_package (Threads)
 add_executable(i2slice ${SOURCE_FILES})
 TARGET_LINK_LIBRARIES(i2slice FastMat)
+TARGET_LINK_LIBRARIES (i2slice ${CMAKE_THREAD_LIBS_INIT})
