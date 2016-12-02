@@ -6,6 +6,7 @@
 #include <thread>  
 #include <iostream>
 #include <algorithm>
+#include "Algorithms.h"
 
 
 using namespace std;
@@ -16,7 +17,7 @@ int BURNIN=1400;
 int NSAMPLE = 50;
 int STEP=(MAX_SWEEP-BURNIN)/NSAMPLE; // Default value is 10 sample + 1 post burnin
 char* result_dir = "./";
-int NINITIAL = 1;
+int NINITIAL = 10; // Should be smaller than d in current matrix implemetation
 // Variables
 double kep,eta;
 Vector u;
@@ -40,13 +41,15 @@ public:
 			SETUP_ID()
 			int taskid = this->taskid++; // Oth thread is the main process
 			auto range = trange(n, nchunks, taskid); // 2xNumber of Threads chunks		
-
+			int NTABLE = 100;
+			Vector likelihoods(NTABLE + 1);
+			int j = 0;
 			for (auto i = range[0]; i< range[1]; i++) // Operates on its own chunk
 			{
 				Restaurant& cl = *c[i];
-				int NTABLE = cl.tables.size();
-				Vector likelihoods(NTABLE+1);
-				int j = 0;
+				NTABLE  = cl.tables.size();
+				likelihoods.resize(NTABLE + 1);
+				j = 0;
 				for (auto& t : cl.tables)
 				{
 					likelihoods[j] = t->dist.likelihood(x(i)) +  log(t->beta); //**
@@ -165,6 +168,9 @@ void reid(list<Restaurant>& clusters)
 Matrix SliceSampler(Matrix& data, ThreadPool& workers, Matrix& superlabels)
 {
 
+	if (NINITIAL > d)
+		NINITIAL = d;
+
 	Vector priormean = mu0;
 	Matrix priorvariance(d, d);
 	priorvariance = Psi*((kep + 1) / ((kep)*eta));
@@ -178,7 +184,19 @@ Matrix SliceSampler(Matrix& data, ThreadPool& workers, Matrix& superlabels)
 	z = vector<Table*>(n); // Component labels
 	c = vector<Restaurant*>(n);
 
+	Vector initiallabels = kmeans(data, NINITIAL);
 	clusters = list<Restaurant>(NINITIAL);
+	for (auto& cluster : clusters)
+		cluster.resetStats();
+
+	vector<Restaurant*> cp = vector<Restaurant*>(clusters.size());
+	i = 0;
+	for (auto& cluster : clusters)
+	{
+		cp[i] = &cluster;
+		i++;
+	}
+
 	for (auto& cluster : clusters)
 	{
 		cluster.sampleParams();
@@ -191,25 +209,44 @@ Matrix SliceSampler(Matrix& data, ThreadPool& workers, Matrix& superlabels)
 		//cluster.sampleTables(tables);
 	}
 
-	vector<Restaurant*> cp = vector<Restaurant*>(clusters.size());
-	i = 0;
-	for (auto& cluster : clusters)
-	{
-		cp[i] = &cluster;
-		i++;
-	}
-
 	for (int i = 0; i < n; i++)
 	{
-		c[i] = cp[rand()%NINITIAL];
-		j = rand() % c[i]->tables.size();
-		u[i] = c[i]->beta[j]*urand();
-		z[i] = c[i]->tables[j];
+		c[i] = cp[initiallabels[i]];
+		u[i] = c[i]->beta[0]*urand();
+		z[i] = c[i]->tables[0];
 	}
 
 	Matrix zi((MAX_SWEEP - BURNIN) / STEP + 1, n);
 	CompTask cmsampler;
 	Collector  collector(NTABLE);
+
+	reid(tables);
+	NTABLE = tables.size();
+	collector.reset();
+	for (i = 0; i < NTABLE; i++) {
+		workers.submit(collector);
+	}
+	workers.waitAll();
+	collector.subscatter();
+	// Update table means
+	for (auto& table : tables)
+		table.sampleMean();
+
+	reid(clusters);
+	// Sample tables
+
+	for (auto& cluster : clusters)
+		cluster.reset();
+	for (auto& table : tables)
+		table.cls->addTable(&table);
+	for (auto& cluster : clusters)
+		cluster.sampleParams();
+	for (auto& cluster : clusters)
+		cluster.calculateDist();
+	for (auto& table : tables)
+		table.sampleMean();
+
+	//Vector kappas = v({ 0.01,0.02,0.05,0.1 });
 
 	for (int iter = 0; iter <= MAX_SWEEP; iter++) {
 
@@ -221,7 +258,8 @@ Matrix SliceSampler(Matrix& data, ThreadPool& workers, Matrix& superlabels)
 		workers.waitAll();
 
 		
-
+		//kappa = kappas[rand() % kappas.n];
+		//kappa1 = 10 * kappa;
 		Vector likes;
 		likes.resize(100);
 		for (int i = 0; i < n; i++)
@@ -257,7 +295,7 @@ Matrix SliceSampler(Matrix& data, ThreadPool& workers, Matrix& superlabels)
 
 		for (auto& cl : clusters)
 		{
-			cl.tables.insert(cl.collapsedtables.begin(), cl.collapsedtables.end(), cl.collapsedtables.end());
+			cl.tables.insert(cl.tables.begin(), cl.collapsedtables.begin(), cl.collapsedtables.end());
 			cl.collapsedtables.resize(0);
 		}
 
@@ -323,6 +361,7 @@ Matrix SliceSampler(Matrix& data, ThreadPool& workers, Matrix& superlabels)
 				cout << " " << cc->n;
 			cout << endl << "Tables :" << tables.size() << endl;
 			cout << endl;
+			fflush(stdout);
 		}
 
 		// 3rd Loop
@@ -579,7 +618,6 @@ int main(int argc,char** argv)
 	if (argc > 8)
 		CBLAS = atoi(argv[8]);
 
-
 	printf("Reading...\n");
 	kep = kappa*kappa1 / (kappa + kappa1);
 	eta = m - d + 2;
@@ -588,6 +626,7 @@ int main(int argc,char** argv)
 
 	ThreadPool tpool(nthd);
 	Matrix superlabels((MAX_SWEEP - BURNIN) / STEP + 1, n);
+	cout << "Starting sampling ...";
 	auto labels = SliceSampler(x, tpool, superlabels); // data,m,kappa,gam,mean,cov 
 	string filename = argv[1];
 	labels.writeBin(filename.append(".labels").c_str());

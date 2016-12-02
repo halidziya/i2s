@@ -125,11 +125,13 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClInclude Include="Algorithms.h" />
     <ClInclude Include="Restaurant.h" />
     <ClInclude Include="SGlobal.h" />
     <ClInclude Include="Table.h" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="Algorithms.cpp" />
     <ClCompile Include="i2gmm.cpp" />
     <ClCompile Include="Restaurant.cpp" />
     <ClCompile Include="SGlobal.cpp" />
