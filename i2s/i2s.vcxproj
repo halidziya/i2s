@@ -111,7 +111,7 @@
       <FunctionLevelLinking>true</FunctionLevelLinking>
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <SDLCheck>true</SDLCheck>
-      <AdditionalIncludeDirectories>C:\Users\hzyereba\Desktop\FastMat;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>C:\Users\hzyereba\Desktop\GMMBase;C:\Users\hzyereba\Desktop\FastMat;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
       <OptimizeForWindowsApplication>true</OptimizeForWindowsApplication>
       <FlushDenormalResultsToZero>true</FlushDenormalResultsToZero>
@@ -125,21 +125,20 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClInclude Include="Algorithms.h" />
     <ClInclude Include="Restaurant.h" />
-    <ClInclude Include="SGlobal.h" />
     <ClInclude Include="Table.h" />
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="Algorithms.cpp" />
     <ClCompile Include="i2gmm.cpp" />
     <ClCompile Include="Restaurant.cpp" />
-    <ClCompile Include="SGlobal.cpp" />
     <ClCompile Include="Table.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\..\FastMat\FastMat\FastMat.vcxproj">
       <Project>{110c56d1-c85f-48b4-bb9e-6a5c701412ea}</Project>
+    </ProjectReference>
+    <ProjectReference Include="..\..\GMMBase\GMMBase.vcxproj">
+      <Project>{50e4909b-aa80-47b2-809d-2a09a47eaae5}</Project>
     </ProjectReference>
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

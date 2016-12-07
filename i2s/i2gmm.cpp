@@ -17,7 +17,7 @@ int BURNIN=1400;
 int NSAMPLE = 50;
 int STEP=(MAX_SWEEP-BURNIN)/NSAMPLE; // Default value is 10 sample + 1 post burnin
 char* result_dir = "./";
-int NINITIAL = 10; // Should be smaller than d in current matrix implemetation
+int NINITIAL = 4; // Should be smaller than d in current matrix implemetation
 // Variables
 double kep,eta;
 Vector u;
@@ -83,6 +83,41 @@ public:
 		}
 	}
 };
+
+
+class CurrentLikelihood : public Task
+{
+public:
+	atomic<int> taskid;
+	atomic<double> likelihood;
+	int nchunks;
+	void run(int id) {
+			SETUP_ID()
+			int taskid = this->taskid++; // Oth thread is the main process
+			auto range = trange(n, nchunks, taskid); // 2xNumber of Threads chunks		
+			for (auto i = range[0]; i < range[1]; i++) // Operates on its own chunk
+			{
+				likelihood = likelihood  + z[i]->dist.likelihood(x(i));
+			}
+		}
+		void reset(int nc){
+			likelihood = 0;
+			nchunks = nc;
+			taskid = 0;
+		}
+
+};
+
+double getFullLikelihood(ThreadPool& tp)
+{
+	CurrentLikelihood cl;
+	cl.reset(nthd);
+	for (int i = 0; i < nthd; i++) {
+		tp.submit(cl);
+	}
+	tp.waitAll();
+	return cl.likelihood;
+}
 
 class Collector : public Task
 {
@@ -206,6 +241,8 @@ Matrix SliceSampler(Matrix& data, ThreadPool& workers, Matrix& superlabels)
 		cluster.tables.push_back(&tables.back());
 		cluster.beta = v({ 0.99,0.01 });
 		tables.back().beta = 0.99;
+		cluster.dist.mu = zeros(d);
+		cluster.dist.cholsigma = eye(d);
 		//cluster.sampleTables(tables);
 	}
 
@@ -388,8 +425,10 @@ Matrix SliceSampler(Matrix& data, ThreadPool& workers, Matrix& superlabels)
 			cluster.reset();
 		for (auto& table : tables)
 			table.cls->addTable(&table);
-		for (auto& cluster : clusters)
-			cluster.sampleParams();
+
+
+
+
 		for (auto& cluster : clusters)
 			cluster.calculateDist();
 			
@@ -488,8 +527,56 @@ Matrix SliceSampler(Matrix& data, ThreadPool& workers, Matrix& superlabels)
 			for (auto& table : tables)
 				table.cls->addTable(&table);
 
+		//for (auto& cluster : clusters)
+		//	cluster.sampleParams();
+
+
+		Vector loglikelihood(10);
+		i = 0;
+		for (kappa = 0.005; kappa < 0.105; kappa += 0.01)
+		{
+			loglikelihood[i] = 0;
+			kappa1 = kappa * 10;
+			for (auto& cluster : clusters)
+				loglikelihood[i] += cluster.sampleParams();
+			//for (auto& table : tables)
+			//	loglikelihood[i] += table.sampleMean()/tables.size();
+			//loglikelihood[i] += getFullLikelihood(workers)/n;
+			i++;
+		}
+		//loglikelihood.print();
+
+		kappa = (sampleFromLog(loglikelihood)*0.01 + 0.005);
+		kappa1 = kappa * 10;
 		for (auto& cluster : clusters)
 			cluster.sampleParams();
+		for (auto& table : tables)
+			table.sampleMean();
+
+		//i = 0;
+		// Psi = Psi/(m-d-1);
+		//for (m = d + 2; m < 101 * d + 2; m += 10 * d)
+		//{
+		//	loglikelihood[i] = 0;
+		//	for (auto& cluster : clusters)
+		//		loglikelihood[i] += cluster.sampleParams();
+		//	for (auto& table : tables)
+		//		loglikelihood[i] += table.sampleMean() / tables.size();
+		//	loglikelihood[i] += getFullLikelihood(workers) / n;
+		//	i++;
+		//}
+
+		// Psi = Psi*(m-d-1);
+		//m = (sampleFromLog(loglikelihood)*10*d + d+2);
+		//for (auto& cluster : clusters)
+		//	cluster.sampleParams();
+		//for (auto& table : tables)
+		//	table.sampleMean();
+
+
+
+
+
 		reid(clusters);
 		reid(tables);
 		for (int i = 0; i < n; i++)
@@ -535,6 +622,7 @@ int main(int argc,char** argv)
 	generator.seed(time(NULL));
 	srand(time(NULL));
 	system("dir");
+
 
 	CBLAS = 0; // Do not use vector library in small dimensions
 
@@ -589,8 +677,8 @@ int main(int argc,char** argv)
 	else
 	{
 		m = x.m + 3;
-		kappa = 1;
-		kappa1 = 1;
+		kappa = 0.05;
+		kappa1 = 0.5;
 		gam = 1;
 		alpha = 1;
 	}
@@ -599,9 +687,6 @@ int main(int argc,char** argv)
 		Psi.readBin(argv[3]);
 	else
 		Psi = (eye(d)*2*(m-d-1)).copy();
-
-
-
 
 	if (argc > 5)
 		MAX_SWEEP = atoi(argv[5]);

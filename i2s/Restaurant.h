@@ -2,7 +2,7 @@
 #include <list>
 #include "FastMat.h"
 #include "Table.h"
-#include "SGlobal.h"
+
 using namespace std;
 
 
@@ -30,7 +30,7 @@ public:
 	void reset();
 	void resetStats();
 	void calculateDist();
-	void sampleParams();
+	double sampleParams();
 	Restaurant();
 	~Restaurant();
 };

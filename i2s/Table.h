@@ -1,6 +1,7 @@
 #pragma once
 #include <list>
 #include "FastMat.h"
+#include "GMMBase.h"
 class Restaurant;
 
 using namespace std;
@@ -20,7 +21,7 @@ public:
 	~Table();
 	Table(Vector& mu, Matrix& sigma);
 	Table(Restaurant* cls, int n, Vector& sum, Matrix& scatter);
-	void sampleMean();
+	double sampleMean();
 	void reset();
 
 	//Stut dist;
