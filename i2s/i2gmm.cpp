@@ -17,7 +17,7 @@ int BURNIN=1400;
 int NSAMPLE = 50;
 int STEP=(MAX_SWEEP-BURNIN)/NSAMPLE; // Default value is 10 sample + 1 post burnin
 char* result_dir = "./";
-int NINITIAL = 4; // Should be smaller than d in current matrix implemetation
+int NINITIAL = 5; // Should be smaller than d in current matrix implemetation
 // Variables
 double kep,eta;
 Vector u;
@@ -89,19 +89,22 @@ class CurrentLikelihood : public Task
 {
 public:
 	atomic<int> taskid;
-	atomic<double> likelihood;
+	atomic<double> loglikelihood;
 	int nchunks;
 	void run(int id) {
+			double llikelihood=0;
 			SETUP_ID()
 			int taskid = this->taskid++; // Oth thread is the main process
-			auto range = trange(n, nchunks, taskid); // 2xNumber of Threads chunks		
+			auto range = trange(n, nchunks, taskid); // 2xNumber of Threads chunks
+
 			for (auto i = range[0]; i < range[1]; i++) // Operates on its own chunk
 			{
-				likelihood = likelihood  + z[i]->dist.likelihood(x(i));
+				llikelihood = llikelihood + z[i]->dist.likelihood(x(i));
 			}
+			loglikelihood = loglikelihood + llikelihood;
 		}
 		void reset(int nc){
-			likelihood = 0;
+			loglikelihood = 0;
 			nchunks = nc;
 			taskid = 0;
 		}
@@ -116,7 +119,7 @@ double getFullLikelihood(ThreadPool& tp)
 		tp.submit(cl);
 	}
 	tp.waitAll();
-	return cl.likelihood;
+	return cl.loglikelihood;
 }
 
 class Collector : public Task
@@ -531,47 +534,80 @@ Matrix SliceSampler(Matrix& data, ThreadPool& workers, Matrix& superlabels)
 		//	cluster.sampleParams();
 
 
-		Vector loglikelihood(10);
-		i = 0;
-		for (kappa = 0.005; kappa < 0.105; kappa += 0.01)
-		{
-			loglikelihood[i] = 0;
-			kappa1 = kappa * 10;
-			for (auto& cluster : clusters)
-				loglikelihood[i] += cluster.sampleParams();
-			//for (auto& table : tables)
-			//	loglikelihood[i] += table.sampleMean()/tables.size();
-			//loglikelihood[i] += getFullLikelihood(workers)/n;
-			i++;
-		}
-		//loglikelihood.print();
 
-		kappa = (sampleFromLog(loglikelihood)*0.01 + 0.005);
-		kappa1 = kappa * 10;
-		for (auto& cluster : clusters)
-			cluster.sampleParams();
-		for (auto& table : tables)
-			table.sampleMean();
 
-		//i = 0;
-		// Psi = Psi/(m-d-1);
-		//for (m = d + 2; m < 101 * d + 2; m += 10 * d)
-		//{
-		//	loglikelihood[i] = 0;
-		//	for (auto& cluster : clusters)
-		//		loglikelihood[i] += cluster.sampleParams();
-		//	for (auto& table : tables)
-		//		loglikelihood[i] += table.sampleMean() / tables.size();
-		//	loglikelihood[i] += getFullLikelihood(workers) / n;
-		//	i++;
-		//}
 
-		// Psi = Psi*(m-d-1);
-		//m = (sampleFromLog(loglikelihood)*10*d + d+2);
-		//for (auto& cluster : clusters)
-		//	cluster.sampleParams();
-		//for (auto& table : tables)
-		//	table.sampleMean();
+
+			if (false){//iter % 5000 == 1) {
+				Vector loglikelihood(50);
+				i = 0;
+				for (kappa = 0.005; kappa < 0.505; kappa += 0.01)
+				{
+					loglikelihood[i] = 0;
+					kappa1 = kappa * 10;
+					for (auto& cluster : clusters)
+						loglikelihood[i] += cluster.sampleParams();
+					//for (auto& table : tables)
+					//	loglikelihood[i] += table.sampleMean()/tables.size();
+					//loglikelihood[i] += getFullLikelihood(workers)/n;
+					i++;
+				}
+				//loglikelihood.print();
+
+				kappa = (sampleFromLog(loglikelihood)*0.01 + 0.005);
+				kappa1 = kappa * 10;
+				for (auto& cluster : clusters)
+					cluster.sampleParams();
+				for (auto& table : tables)
+					table.sampleMean();
+
+
+				i = 0;
+				Matrix Psioz = (Psi / (m - d - 1)).copy();
+				for (m = d + 2; m < 101 * d + 2; m += 2 * d)
+				{
+					Psi = Psioz*(m - d - 1);
+					loglikelihood[i] = 0;
+					for (auto& cluster : clusters)
+						loglikelihood[i] += cluster.sampleParams();
+					for (auto& table : tables)
+						loglikelihood[i] += table.sampleMean();
+					loglikelihood[i] += getFullLikelihood(workers) / n;
+					i++;
+				}
+
+
+				m = (sampleFromLog(loglikelihood) * 2 * d + d + 2);
+				Psi = Psioz*(m - d - 1);
+				for (auto& cluster : clusters)
+					cluster.sampleParams();
+				for (auto& table : tables)
+					table.sampleMean();
+
+				//Psioz = (Psi / (m - d - 1));
+				//Psi = eye(d)*(m - d - 1) * 1;
+				//for (i = 0; i < d; i++)
+				//{
+				//	k = 0;
+				//	for (auto s = 1.;s < 11; s += 1)
+				//	{
+				//		Psi.data[i*d + i] = s*(m - d - 1);
+				//		loglikelihood[k] = 0;
+				//		for (auto& cluster : clusters)
+				//			loglikelihood[k] += cluster.sampleParams();
+				//		for (auto& table : tables)
+				//			loglikelihood[k] += table.sampleMean();
+				//		loglikelihood[k] += getFullLikelihood(workers) / n;
+				//		k++;
+				//	}
+				//	Psi.data[i*d + i] = ((sampleFromLog(loglikelihood) + 1) * 1)*(m - d - 1);
+				//	for (auto& cluster : clusters)
+				//		cluster.sampleParams();
+				//	for (auto& table : tables)
+				//		table.sampleMean();
+				//}
+
+			}
 
 
 
