@@ -20,14 +20,15 @@ set(SOURCE_FILES
     i2s/i2gmm.cpp
     i2s/Restaurant.cpp
     i2s/Restaurant.h
-    i2s/SGlobal.cpp
-    i2s/SGlobal.h
     i2s/Table.cpp
     i2s/Table.h)
 
+INCLUDE_DIRECTORIES(../GMMBase/)
+LINK_DIRECTORIES(../GMMBase)
 INCLUDE_DIRECTORIES(../FastMat/)
 LINK_DIRECTORIES(../FastMat)
 find_package (Threads)
 add_executable(i2slice ${SOURCE_FILES})
 TARGET_LINK_LIBRARIES(i2slice FastMat)
 TARGET_LINK_LIBRARIES (i2slice ${CMAKE_THREAD_LIBS_INIT})
+TARGET_LINK_LIBRARIES(i2slice GMMBase)
