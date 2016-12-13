@@ -538,13 +538,14 @@ Matrix SliceSampler(Matrix& data, ThreadPool& workers, Matrix& superlabels)
 
 
 
-			if (false){//iter % 5000 == 1) {
-				Vector loglikelihood(50);
+			if (iter%5==1){//iter % 5000 == 1) {
+				Vector loglikelihood(10);
 				i = 0;
-				for (kappa = 0.005; kappa < 0.505; kappa += 0.01)
+				double kapparatio = kappa1 / kappa;
+				for (kappa = 0.005; kappa < 0.505; kappa += 0.05)
 				{
 					loglikelihood[i] = 0;
-					kappa1 = kappa * 10;
+					kappa1 = kappa * kapparatio;
 					for (auto& cluster : clusters)
 						loglikelihood[i] += cluster.sampleParams();
 					//for (auto& table : tables)
@@ -552,19 +553,38 @@ Matrix SliceSampler(Matrix& data, ThreadPool& workers, Matrix& superlabels)
 					//loglikelihood[i] += getFullLikelihood(workers)/n;
 					i++;
 				}
+				
 				//loglikelihood.print();
 
-				kappa = (sampleFromLog(loglikelihood)*0.01 + 0.005);
-				kappa1 = kappa * 10;
+				kappa = (sampleFromLog(loglikelihood)*0.05 + 0.005);
+				kappa1 = kappa * kapparatio;
 				for (auto& cluster : clusters)
 					cluster.sampleParams();
 				for (auto& table : tables)
 					table.sampleMean();
 
+				i = 0;
+				for (kapparatio = 1; kapparatio < 21; kapparatio += 2)
+				{
+					kappa1 = kapparatio*kappa;
+					loglikelihood[i] = 0;
+					for (auto& cluster : clusters)
+						loglikelihood[i] += cluster.sampleParams();
+					//for (auto& table : tables)
+					//	loglikelihood[i] += table.sampleMean()/tables.size();
+					//loglikelihood[i] += getFullLikelihood(workers)/n;
+					i++;
+				}
+				kapparatio = (sampleFromLog(loglikelihood)*2 + 1);
+				kappa1 = kapparatio*kappa;
+				for (auto& cluster : clusters)
+					cluster.sampleParams();
+				for (auto& table : tables)
+					table.sampleMean();
 
 				i = 0;
 				Matrix Psioz = (Psi / (m - d - 1)).copy();
-				for (m = d + 2; m < 101 * d + 2; m += 2 * d)
+				for (m = d + 2; m < 201 * d + 2; m += 20 * d)
 				{
 					Psi = Psioz*(m - d - 1);
 					loglikelihood[i] = 0;
@@ -576,14 +596,13 @@ Matrix SliceSampler(Matrix& data, ThreadPool& workers, Matrix& superlabels)
 					i++;
 				}
 
-
-				m = (sampleFromLog(loglikelihood) * 2 * d + d + 2);
+				m = (sampleFromLog(loglikelihood) * 20 * d + d + 2);
 				Psi = Psioz*(m - d - 1);
 				for (auto& cluster : clusters)
 					cluster.sampleParams();
 				for (auto& table : tables)
 					table.sampleMean();
-
+				//cout << m << " " << kappa1 << " " << kappa;
 				//Psioz = (Psi / (m - d - 1));
 				//Psi = eye(d)*(m - d - 1) * 1;
 				//for (i = 0; i < d; i++)
@@ -722,7 +741,7 @@ int main(int argc,char** argv)
 	if (argc > 3)
 		Psi.readBin(argv[3]);
 	else
-		Psi = (eye(d)*2*(m-d-1)).copy();
+		Psi = (eye(d)*(m-d-1)).copy();
 
 	if (argc > 5)
 		MAX_SWEEP = atoi(argv[5]);
