@@ -7,6 +7,7 @@
 #include <iostream>
 #include <algorithm>
 #include "Algorithms.h"
+#include "GMMBase.h"
 
 
 using namespace std;
@@ -196,12 +197,20 @@ void reid(list<Table>& tables)
 		atable.id = i++;
 }
 
+bool compare_clusters(Restaurant& c1, Restaurant& c2)
+{
+	return c1.n > c2.n;
+}
+
+
 void reid(list<Restaurant>& clusters)
 {
+	clusters.sort(compare_clusters);
 	int i = 0;
 	for (auto& acul : clusters)
 		acul.id = i++;
 }
+
 
 Matrix SliceSampler(Matrix& data, ThreadPool& workers, Matrix& superlabels)
 {
@@ -330,6 +339,7 @@ Matrix SliceSampler(Matrix& data, ThreadPool& workers, Matrix& superlabels)
 				z[i]->sum += x[i];
 				z[i]->scatter += ((x[i]-c[i]->dist.mu) >> (x[i] - c[i]->dist.mu));
 			}
+			//cout << i << endl;
 		}
 		//cout << cmsampler.nnew << endl;
 
@@ -539,12 +549,13 @@ Matrix SliceSampler(Matrix& data, ThreadPool& workers, Matrix& superlabels)
 
 
 			if (true){//iter % 5000 == 1) {
-				Vector loglikelihood(10);
+				Vector loglikelihood(20);
 				i = 0;
 				double kapparatio = kappa1 / kappa;
-				for (kappa = 0.005; kappa < 0.105; kappa += 0.01)
+				for (i=0;i<20;i++)
 				{
 					loglikelihood[i] = 0;
+					kappa = 0.005 + 0.01*i;
 					kappa1 = kappa * kapparatio;
 					for (auto& cluster : clusters)
 						loglikelihood[i] += cluster.sampleParams();
@@ -562,24 +573,24 @@ Matrix SliceSampler(Matrix& data, ThreadPool& workers, Matrix& superlabels)
 				for (auto& table : tables)
 					table.sampleMean();
 
-				i = 0;
-				for (kapparatio = 6; kapparatio < 16; kapparatio += 1)
-				{
-					kappa1 = kapparatio*kappa;
-					loglikelihood[i] = 0;
-					for (auto& cluster : clusters)
-						loglikelihood[i] += cluster.sampleParams();
-					//for (auto& table : tables)
-					//	loglikelihood[i] += table.sampleMean()/tables.size();
-					//loglikelihood[i] += getFullLikelihood(workers)/n;
-					i++;
-				}
-				kapparatio = (sampleFromLog(loglikelihood)*1 + 6);
-				kappa1 = kapparatio*kappa;
-				for (auto& cluster : clusters)
-					cluster.sampleParams();
-				for (auto& table : tables)
-					table.sampleMean();
+				//i = 0;
+				//for (kapparatio = 6; kapparatio < 16; kapparatio += 1)
+				//{
+				//	kappa1 = kapparatio*kappa;
+				//	loglikelihood[i] = 0;
+				//	for (auto& cluster : clusters)
+				//		loglikelihood[i] += cluster.sampleParams();
+				//	//for (auto& table : tables)
+				//	//	loglikelihood[i] += table.sampleMean()/tables.size();
+				//	//loglikelihood[i] += getFullLikelihood(workers)/n;
+				//	i++;
+				//}
+				//kapparatio = (sampleFromLog(loglikelihood)*1 + 6);
+				//kappa1 = kapparatio*kappa;
+				//for (auto& cluster : clusters)
+				//	cluster.sampleParams();
+				//for (auto& table : tables)
+				//	table.sampleMean();
 
 				//i = 0;
 				//Matrix Psioz = (Psi / (m - d - 1)).copy();
@@ -670,26 +681,19 @@ Matrix SliceSampler(Matrix& data, ThreadPool& workers, Matrix& superlabels)
 PILL_DEBUG
 int main(int argc,char** argv)
 {
-	Matrix x;
-	Matrix hyperparams;
+
 	Matrix initialLabels;
 	generator.seed(time(NULL));
 	srand(time(NULL));
-	system("dir");
-
 
 	CBLAS = 0; // Do not use vector library in small dimensions
-
-	if (argc > 1)
+	if (argc < 1)
 	{
-		x.readBin(argv[1]);
-		cout << argv[1] << endl;
-	}
-	else
-	{
-		cout << "Usage: " << "i2slice.exe datafile.matrix [hypermean.matrix] [hyperscatter.matrix] [params.matrix (d,m,kappa,kappa1,gam)]  [#ITERATION] [#BURNIN] [#SAMPLE]  [initiallabels.matrix]: In fixed order";
+		cout << "Usage: " << "i2slice.exe datafile.matrix [NIWprior.matrix] [params.matrix (d,m,kappa,kappa1,gam)]  [#ITERATION] [#BURNIN] [#SAMPLE]  [initiallabels.matrix]: In fixed order";
 		return -1;
 	}
+	DataSet ds(argv[1], argv[2],argv[3]);
+	Matrix& x = ds.data;
 	cout << "NPOINTS :" << x.r << " NDIMS:" << x.m << endl;
 	nthd = thread::hardware_concurrency();
 	n = x.r; // Number of Points
@@ -706,70 +710,34 @@ int main(int argc,char** argv)
 		cout << "Usage: " << "i2slice.exe datafile.matrix [hypermean.matrix] [hyperscatter.matrix] [params.matrix (d,m,kappa,gam)]  [#ITERATION] [#BURNIN] [#SAMPLE]  [initiallabels.matrix]: In fixed order";
 		return -1;
 	}
+	cout << m << " " << kappa << " " << kappa1 << " " << alpha << " " << gam << endl;
 
-	if (argc > 2)
-	{
-		Matrix mu;
-		mu.readBin(argv[2]);
-		mu0 = mu;
-	}
-	else
-		mu0 = x.mean().copy();
-
-
-	if (argc > 4)
-	{
-		hyperparams.readBin(argv[4]);
-		hyperparams.print();
-		m = hyperparams.data[1];
-		kappa = hyperparams.data[2];
-		kappa1 = hyperparams.data[3];
-		alpha = hyperparams.data[4];
-		gam = hyperparams.data[5];
-		cout << m << " " << kappa << " " << kappa1 << " " << alpha << " " << gam << endl;
-	}
-	else
-	{
-		m = x.m + 3;
-		kappa = 0.05;
-		kappa1 = 0.5;
-		gam = 1;
-		alpha = 1;
-	}
-
-	if (argc > 3)
-		Psi.readBin(argv[3]);
-	else
-		Psi = (eye(d)*(m-d-1)).copy();
-
-	if (argc > 5)
-		MAX_SWEEP = atoi(argv[5]);
-
+	if (argc>4)
+		MAX_SWEEP = atoi(argv[4]);
+	if (argc>5)
+		BURNIN = atoi(argv[5]);
 	if (argc > 6)
-		BURNIN = atoi(argv[6]);
-
-	if (argc > 7)
+		result_dir = argv[6];
+	else
 	{
-		NSAMPLE = atoi(argv[7]);
-		STEP = (MAX_SWEEP - BURNIN) / NSAMPLE;
+		string str(argv[1]);
+		result_dir = (char*)str.substr(0, str.find_last_of("/\\")).c_str(); // Datafile folder
 	}
-
-	if (argc > 8)
-		CBLAS = atoi(argv[8]);
-
+	int SAMPLE = (MAX_SWEEP - BURNIN) / 50; // Default value
+	if (argc>7)
+		SAMPLE = atoi(argv[7]);
+	STEP = (MAX_SWEEP - BURNIN) / SAMPLE;
 	printf("Reading...\n");
 	kep = kappa*kappa1 / (kappa + kappa1);
 	eta = m - d + 2;
-	precomputegamLn(2 * (n + d) + 1);  // With 0.5 increments
-	init_buffer(thread::hardware_concurrency(), d);
 
 	ThreadPool tpool(nthd);
 	Matrix superlabels((MAX_SWEEP - BURNIN) / STEP + 1, n);
 	cout << "Starting sampling ...";
 	auto labels = SliceSampler(x, tpool, superlabels); // data,m,kappa,gam,mean,cov 
-	string filename = argv[1];
-	labels.writeBin(filename.append(".labels").c_str());
-	filename = argv[1];
-	superlabels.writeBin(filename.append(".superlabels").c_str());
+	string filename = result_dir;
+	labels.writeBin(filename.append("Subabels.matrix").c_str());
+	filename = result_dir;
+	superlabels.writeBin(filename.append("Labels.matrix").c_str());
 
 }
