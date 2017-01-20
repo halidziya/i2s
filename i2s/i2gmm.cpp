@@ -13,10 +13,11 @@
 using namespace std;
 
 
-int MAX_SWEEP=1500;
-int BURNIN=1400;
-int NSAMPLE = 50;
-int STEP=(MAX_SWEEP-BURNIN)/NSAMPLE; // Default value is 10 sample + 1 post burnin
+int MAX_SWEEP = 1500;
+int BURNIN = 1000;
+int SAMPLE = 20;
+int STEP = (MAX_SWEEP - BURNIN) / SAMPLE;
+
 char* result_dir = "./";
 int NINITIAL = 5; // Should be smaller than d in current matrix implemetation
 // Variables
@@ -265,7 +266,7 @@ Matrix SliceSampler(Matrix& data, ThreadPool& workers, Matrix& superlabels)
 		z[i] = c[i]->tables[0];
 	}
 
-	Matrix zi((MAX_SWEEP - BURNIN) / STEP + 1, n);
+	Matrix zi(SAMPLE, n);
 	CompTask cmsampler;
 	Collector  collector(NTABLE);
 
@@ -297,7 +298,7 @@ Matrix SliceSampler(Matrix& data, ThreadPool& workers, Matrix& superlabels)
 
 	//Vector kappas = v({ 0.01,0.02,0.05,0.1 });
 
-	for (int iter = 0; iter <= MAX_SWEEP; iter++) {
+	for (int iter = 0; iter < MAX_SWEEP; iter++) {
 
 		reid(clusters);
 		cmsampler.reset(2 * nthd);
@@ -548,7 +549,7 @@ Matrix SliceSampler(Matrix& data, ThreadPool& workers, Matrix& superlabels)
 
 
 
-			if (true){//iter % 5000 == 1) {
+			if (false){//iter % 5000 == 1) {
 				Vector loglikelihood(20);
 				i = 0;
 				double kapparatio = kappa1 / kappa;
@@ -647,13 +648,16 @@ Matrix SliceSampler(Matrix& data, ThreadPool& workers, Matrix& superlabels)
 		for (int i = 0; i < n; i++)
 			c[i] = z[i]->cls;
 
-		if (iter > BURNIN && ((iter - BURNIN) % STEP == 0))
+		if (((MAX_SWEEP - iter - 1) % STEP) == 0 && iter >= BURNIN)
+		{
+			int sampleno = (MAX_SWEEP - iter - 1) / STEP;
+			if (sampleno<SAMPLE)
 			for (int i = 0; i < n; i++)
 			{
-				zi((iter - BURNIN) / STEP)[i] = z[i]->id;
-				superlabels((iter - BURNIN) / STEP)[i] = c[i]->id;
+				zi(sampleno)[i] = z[i]->id;
+				superlabels(sampleno)[i] = c[i]->id;
 			}
-
+		}
 		// Sample Tables
 		for (auto& cluster : clusters)
 			if (cluster.n > 0)
@@ -723,20 +727,26 @@ int main(int argc,char** argv)
 		string str(argv[1]);
 		result_dir = (char*)str.substr(0, str.find_last_of("/\\")).c_str(); // Datafile folder
 	}
-	int SAMPLE = (MAX_SWEEP - BURNIN) / 50; // Default value
-	if (argc>7)
+	if (argc > 7)
+	{
 		SAMPLE = atoi(argv[7]);
+	}
 	STEP = (MAX_SWEEP - BURNIN) / SAMPLE;
+	if (BURNIN >= MAX_SWEEP | STEP == 0) // Housekeeping
+	{
+		BURNIN = MAX_SWEEP - 2;
+		SAMPLE = 1; STEP = 1;
+	}
 	printf("Reading...\n");
 	kep = kappa*kappa1 / (kappa + kappa1);
 	eta = m - d + 2;
 
 	ThreadPool tpool(nthd);
-	Matrix superlabels((MAX_SWEEP - BURNIN) / STEP + 1, n);
+	Matrix superlabels(SAMPLE, n);
 	cout << "Starting sampling ...";
 	auto labels = SliceSampler(x, tpool, superlabels); // data,m,kappa,gam,mean,cov 
 	string filename = result_dir;
-	labels.writeBin(filename.append("Subabels.matrix").c_str());
+	labels.writeBin(filename.append("Sublabels.matrix").c_str());
 	filename = result_dir;
 	superlabels.writeBin(filename.append("Labels.matrix").c_str());
 
