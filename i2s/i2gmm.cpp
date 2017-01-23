@@ -181,10 +181,11 @@ public:
 			else
 			{
 				logprob = 0;
-				for (auto points = atable.plist.begin(); points != atable.plist.end(); points++)
+				for (auto apoint : atable.plist)
 				{
-					logprob += cc->tdist.likelihood(x[*points]);
+					logprob += cc->tdist.likelihood(x[apoint]);
 				}
+				//logprob += cc->tdist.likelihood(atable.dist.mu);
 				logprob = logprob + log(cc->n);//+log(atable.n); //Prior
 				logprobs[taskid] = logprob;
 			}
@@ -453,7 +454,7 @@ Matrix SliceSampler(Matrix& data, ThreadPool& workers, Matrix& superlabels)
 				atable.cls->calculateDist();
 
 				k = 0;
-				newdishprob =  log(gam) + atable.loglik0;
+				newdishprob = log(gam) + atable.loglik0; //stt.likelihood(atable.dist.mu);
 				Cluster cls(logprobs, atable,cp);
 				for (auto i = 0; i < clusters.size(); i++) {
 					workers.submit(cls);
