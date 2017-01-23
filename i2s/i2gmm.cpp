@@ -57,6 +57,7 @@ public:
 					likelihoods[j] = t->dist.likelihood(x(i)) +  log(t->beta); //**
 					j++;
 				}
+				
 				likelihoods[NTABLE] = loglik0[i] + log(cl.beta[NTABLE]);
 				int idx = sampleFromLog(likelihoods);
 				if (idx < NTABLE)
@@ -307,7 +308,6 @@ Matrix SliceSampler(Matrix& data, ThreadPool& workers, Matrix& superlabels)
 			workers.submit(cmsampler);
 		}
 		workers.waitAll();
-
 		
 		//kappa = kappas[rand() % kappas.n];
 		//kappa1 = 10 * kappa;
@@ -454,9 +454,15 @@ Matrix SliceSampler(Matrix& data, ThreadPool& workers, Matrix& superlabels)
 				atable.cls->calculateDist();
 
 				k = 0;
+				
 				newdishprob = log(gam) + atable.loglik0; //stt.likelihood(atable.dist.mu);
 				Cluster cls(logprobs, atable,cp);
+				//newdishprob = log(gam) + stt.likelihood(atable.dist.mu); //stt.likelihood(atable.dist.mu);
 				for (auto i = 0; i < clusters.size(); i++) {
+					//if (cp[i]->nt == 0)
+					//	logprobs[i] = -INFINITY;
+					//else
+					//	logprobs[i]= cp[i]->tdist.likelihood(atable.dist.mu) + log(cp[i]->n);
 					workers.submit(cls);
 				}
 				workers.waitAll();
@@ -694,7 +700,7 @@ int main(int argc,char** argv)
 	CBLAS = 0; // Do not use vector library in small dimensions
 	if (argc < 1)
 	{
-		cout << "Usage: " << "i2slice.exe datafile.matrix [NIWprior.matrix] [params.matrix (d,m,kappa,kappa1,gam)]  [#ITERATION] [#BURNIN] [#SAMPLE]  [initiallabels.matrix]: In fixed order";
+		cout << "Usage: " << "i2slice.exe datafile.matrix [hypermean.matrix] [hyperscatter.matrix] [params.matrix (m,kappa,kappai,alpha,gam)]  [#ITERATION] [#BURNIN] [#SAMPLE]  [initiallabels.matrix]: In fixed order";
 		return -1;
 	}
 	DataSet ds(argv[1], argv[2],argv[3]);
@@ -712,7 +718,7 @@ int main(int argc,char** argv)
 	// Hyper-parameters with default values
 	if (x.data == NULL)
 	{
-		cout << "Usage: " << "i2slice.exe datafile.matrix [hypermean.matrix] [hyperscatter.matrix] [params.matrix (d,m,kappa,gam)]  [#ITERATION] [#BURNIN] [#SAMPLE]  [initiallabels.matrix]: In fixed order";
+		cout << "Usage: " << "i2slice.exe datafile.matrix [hypermean.matrix] [hyperscatter.matrix] [params.matrix (m,kappa,kappai,alpha,gam)]  [#ITERATION] [#BURNIN] [#SAMPLE]  [initiallabels.matrix]: In fixed order";
 		return -1;
 	}
 	cout << m << " " << kappa << " " << kappa1 << " " << alpha << " " << gam << endl;
