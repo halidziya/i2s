@@ -736,18 +736,16 @@ int main(int argc,char** argv)
 		cout << "Usage: " << "i2slice.exe datafile.matrix [hypermean.matrix] [hyperscatter.matrix] [params.matrix (m,kappa,kappai,alpha,gam)]  [#ITERATION] [#BURNIN] [#SAMPLE]  [initiallabels.matrix]: In fixed order";
 		return -1;
 	}
-	DataSet ds(argv[1], argv[2],argv[3]);
+	nthd = thread::hardware_concurrency();
+	DataSet ds(argc,argv);
 	Matrix& x = ds.data;
 	cout << "NPOINTS :" << x.r << " NDIMS:" << x.m << endl;
-	nthd = thread::hardware_concurrency();
 	n = x.r; // Number of Points
 	d = x.m;
-
-	init_buffer(nthd, x.m);
+	//init_buffer(nthd, x.m);
 	cout << " Available number of threads : " << nthd << endl;
 	precomputegamLn(2 * n + 100 * d);
-
-
+	
 	// Hyper-parameters with default values
 	if (x.data == NULL)
 	{
