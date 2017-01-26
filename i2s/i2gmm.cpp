@@ -19,7 +19,7 @@ int SAMPLE = 20;
 int STEP = (MAX_SWEEP - BURNIN) / SAMPLE;
 
 char* result_dir = "./";
-int NINITIAL = 5; // Should be smaller than d in current matrix implemetation
+int NINITIAL = 3; // Should be smaller than d in current matrix implemetation
 // Variables
 double kep,eta;
 Vector u;
@@ -87,6 +87,29 @@ public:
 	}
 };
 
+class ListCollect : public Task
+{
+public:
+	atomic<int> taskid;
+	atomic<double> loglikelihood;
+	int nchunks;
+	void reset()
+	{
+		taskid = 0;
+	}
+	void run(int id) {
+		SETUP_ID()
+		int taskid = this->taskid++;
+		for (int i = 0; i < n; i++)
+		{
+			if (z[i]->id == taskid) // Distributed according to label id
+			{
+				z[i]->plist.push_back(i);
+			}
+		}
+	}
+
+};
 
 class CurrentLikelihood : public Task
 {
@@ -182,6 +205,7 @@ public:
 			else
 			{
 				logprob = 0;
+				#pragma parallel
 				for (auto apoint : atable.plist)
 				{
 					logprob += cc->tdist.likelihood(x[apoint]);
@@ -230,7 +254,7 @@ Matrix SliceSampler(Matrix& data, ThreadPool& workers, Matrix& superlabels)
 	x = data;
 	int NTABLE = NINITIAL;
 	int k = 0, i = 0, j = 0;
-	u = ones(n);
+	//u = ones(n);
 	z = vector<Table*>(n); // Component labels
 	c = vector<Restaurant*>(n);
 
@@ -264,7 +288,7 @@ Matrix SliceSampler(Matrix& data, ThreadPool& workers, Matrix& superlabels)
 	for (int i = 0; i < n; i++)
 	{
 		c[i] = cp[initiallabels[i]];
-		u[i] = c[i]->beta[0]*urand();
+		//u[i] = c[i]->beta[0]*urand();
 		z[i] = c[i]->tables[0];
 	}
 
@@ -303,7 +327,7 @@ Matrix SliceSampler(Matrix& data, ThreadPool& workers, Matrix& superlabels)
 	for (int iter = 0; iter < MAX_SWEEP; iter++) {
 
 		reid(clusters);
-		cmsampler.reset(2 * nthd);
+		cmsampler.reset(10 * nthd);
 		for (auto i = 0; i < cmsampler.nchunks; i++) {
 			workers.submit(cmsampler);
 		}
@@ -422,6 +446,15 @@ Matrix SliceSampler(Matrix& data, ThreadPool& workers, Matrix& superlabels)
 		
 		for (auto& atable : tables)
 			atable.plist.resize(0);
+
+		//ListCollect lc;
+		//NTABLE = tables.size();
+		//lc.reset();
+		//for (i = 0; i < NTABLE; i++) {
+			//workers.submit(lc);
+		//}
+		//workers.waitAll();
+
 		for (int i = 0; i < n; i++)
 		{
 			z[i]->plist.push_back(i);
@@ -670,12 +703,12 @@ Matrix SliceSampler(Matrix& data, ThreadPool& workers, Matrix& superlabels)
 			if (cluster.n > 0)
 				cluster.sampleTables(tables);
 
-		for (i = 0; i < n; i++)
-		{
-			u[i] = z[i]->beta * urand();
-			if (z[i]->cls->ustar < u[i])
-				z[i]->cls->ustar = u[i];
-		}
+		//for (i = 0; i < n; i++)
+		//{
+		//	u[i] = z[i]->beta * urand();
+		//	if (z[i]->cls->ustar < u[i])
+		//		z[i]->cls->ustar = u[i];
+		//}
 
 		//Psi = eye(d);
 		//for (auto& cluster : clusters)
