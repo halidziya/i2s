@@ -752,7 +752,7 @@ int main(int argc,char** argv)
 		cout << "Usage: " << "i2slice.exe datafile.matrix [hypermean.matrix] [hyperscatter.matrix] [params.matrix (m,kappa,kappai,alpha,gam)]  [#ITERATION] [#BURNIN] [#SAMPLE]  [initiallabels.matrix]: In fixed order";
 		return -1;
 	}
-	cout << m << " " << kappa << " " << kappa1 << " " << alpha << " " << gam << endl;
+
 
 	if (argc>4)
 		MAX_SWEEP = atoi(argv[4]);
@@ -782,10 +782,20 @@ int main(int argc,char** argv)
 	ThreadPool tpool(nthd);
 	Matrix superlabels(SAMPLE, n);
 	cout << "Starting sampling ...";
+
+
 	auto labels = SliceSampler(x, tpool, superlabels); // data,m,kappa,gam,mean,cov 
 	string filename = result_dir;
-	labels.writeBin(filename.append("Sublabels.matrix").c_str());
-	filename = result_dir;
-	superlabels.writeBin(filename.append("Labels.matrix").c_str());
 
+	try {
+
+		labels.writeBin(filename.append("Sublabels.matrix").c_str());
+		filename = result_dir;
+		superlabels.writeBin(filename.append("Labels.matrix").c_str());
+	}
+	catch (exception e)
+	{
+		cout << "Error in writing files " << endl;
+		return -1;
+	}
 }
